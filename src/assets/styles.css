@@ -24,6 +24,24 @@ html, body {
   overflow: auto;
 }
 
+/* Optimizar el espacio en el árbol del panel lateral */
+.sidebar-tree {
+  font-size: 0.9rem;
+}
+
+.sidebar-tree .p-treenode-content {
+  padding: 0.3rem 0.5rem;
+}
+
+.sidebar-tree .p-tree-container {
+  padding: 0.25rem;
+}
+
+/* Ajustar el tamaño del título del panel */
+.p-splitter-panel h3 {
+  font-size: 1.1rem;
+}
+
 .p-splitter-panel {
   display: flex;
   flex-direction: column;
@@ -46,10 +64,16 @@ html, body {
   padding: 0 0.5rem;
 }
 
+/* Mejorar la apariencia del campo de búsqueda */
+.p-tree-filter {
+  padding: 0.3rem 0.5rem !important;
+  font-size: 0.85rem;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -58,7 +82,7 @@ html, body {
 
 ::-webkit-scrollbar-thumb {
   background: #888;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {

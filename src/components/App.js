@@ -372,7 +372,7 @@ const App = () => {
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <Splitter style={{ height: '100%' }}>
           {/* Left sidebar with tree */}
-          <SplitterPanel size={20} minSize={10} style={{ overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <SplitterPanel size={25} minSize={20} style={{ overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div className="p-2 flex justify-content-between align-items-center">
               <h3 className="m-0">Explorador</h3>
               <Button 
@@ -392,7 +392,7 @@ const App = () => {
                 onSelectionChange={e => setSelectedNodeKey(e.value)} 
                 dragdropScope="files"
                 onDragDrop={onDragDrop}
-                className="w-full h-full"
+                className="w-full h-full sidebar-tree"
                 nodeTemplate={nodeTemplate}
                 filter
                 filterMode="strict"
@@ -402,7 +402,7 @@ const App = () => {
           </SplitterPanel>
           
           {/* Main content area */}
-          <SplitterPanel size={80} style={{ padding: '1rem', overflow: 'auto' }}>
+          <SplitterPanel size={75} style={{ padding: '1rem', overflow: 'auto' }}>
             <Card title="Contenido Principal">
               <p className="m-0">
                 Bienvenido a la aplicación de escritorio. Seleccione un archivo del panel lateral para ver su contenido.
