@@ -9,12 +9,23 @@ import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
+import { Dropdown } from 'primereact/dropdown';
 
 const App = () => {
   const toast = useRef(null);
   const [folderName, setFolderName] = useState('');
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [parentNodeKey, setParentNodeKey] = useState(null);
+  const [showSSHDialog, setShowSSHDialog] = useState(false);
+  const [sshName, setSSHName] = useState('');
+  const [sshHost, setSSHHost] = useState('');
+  const [sshUser, setSSHUser] = useState('');
+  const [sshTargetFolder, setSSHTargetFolder] = useState(null);
+  const [showEditSSHDialog, setShowEditSSHDialog] = useState(false);
+  const [editSSHNode, setEditSSHNode] = useState(null);
+  const [editSSHName, setEditSSHName] = useState('');
+  const [editSSHHost, setEditSSHHost] = useState('');
+  const [editSSHUser, setEditSSHUser] = useState('');
 
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
@@ -37,6 +48,11 @@ const App = () => {
             {
               label: 'Nuevo Archivo',
               icon: 'pi pi-fw pi-file'
+            },
+            {
+              label: 'Nueva sesión SSH',
+              icon: 'pi pi-fw pi-terminal',
+              command: () => setShowSSHDialog(true)
             }
           ]
         },
@@ -65,6 +81,7 @@ const App = () => {
           label: 'Cortar',
           icon: 'pi pi-fw pi-cut'
         },
+        
         {
           label: 'Copiar',
           icon: 'pi pi-fw pi-copy'
@@ -135,26 +152,23 @@ const App = () => {
     {
       key: '0',
       label: 'Proyectos',
-      icon: 'pi pi-fw pi-folder',
       droppable: true,
       children: [
         {
           key: '0-0',
           label: 'Proyecto 1',
-          icon: 'pi pi-fw pi-folder',
           droppable: true,
           children: [
-            { key: '0-0-0', label: 'Archivo 1.txt', icon: 'pi pi-fw pi-file', draggable: true },
-            { key: '0-0-1', label: 'Archivo 2.txt', icon: 'pi pi-fw pi-file', draggable: true }
+            { key: '0-0-0', label: 'Archivo 1.txt', draggable: true },
+            { key: '0-0-1', label: 'Archivo 2.txt', draggable: true }
           ]
         },
         {
           key: '0-1',
           label: 'Proyecto 2',
-          icon: 'pi pi-fw pi-folder',
           droppable: true,
           children: [
-            { key: '0-1-0', label: 'Archivo 3.txt', icon: 'pi pi-fw pi-file', draggable: true }
+            { key: '0-1-0', label: 'Archivo 3.txt', draggable: true }
           ]
         }
       ]
@@ -162,11 +176,10 @@ const App = () => {
     {
       key: '1',
       label: 'Documentos',
-      icon: 'pi pi-fw pi-folder',
       droppable: true,
       children: [
-        { key: '1-0', label: 'Documento 1.pdf', icon: 'pi pi-fw pi-file-pdf', draggable: true },
-        { key: '1-1', label: 'Documento 2.docx', icon: 'pi pi-fw pi-file', draggable: true }
+        { key: '1-0', label: 'Documento 1.pdf', draggable: true },
+        { key: '1-1', label: 'Documento 2.docx', draggable: true }
       ]
     }
   ];
@@ -470,7 +483,6 @@ const App = () => {
       const newFolder = {
         key: newKey,
         label: folderName.trim(),
-        icon: 'pi pi-fw pi-folder',
         droppable: true,
         children: [],
         // Add unique persistent identifier
@@ -607,12 +619,33 @@ const App = () => {
   const nodeTemplate = (node, options) => {
     const isFolder = node.droppable;
     const hasChildren = isFolder && node.children && node.children.length > 0;
-    
+    const isSSH = node.data && node.data.type === 'ssh';
+    let iconClass = '';
+    if (isSSH) {
+      iconClass = 'pi pi-desktop';
+    } else if (isFolder) {
+      iconClass = options.expanded ? 'pi pi-folder-open' : 'pi pi-folder';
+    }
     return (
       <div className="flex align-items-center gap-2" onContextMenu={(e) => onNodeContextMenu(e, node)}>
-        <span className={options.icon}></span>
+        <span className={iconClass} style={{ minWidth: 20 }}></span>
         <span className="node-label">{node.label}</span>
         <div className="ml-auto flex">
+          {isSSH && (
+            <Button
+              icon="pi pi-pencil"
+              rounded
+              text
+              size="small"
+              className="node-action-button"
+              onClick={e => {
+                e.stopPropagation();
+                openEditSSHDialog(node);
+              }}
+              tooltip="Editar sesión SSH"
+              tooltipOptions={{ position: 'top' }}
+            />
+          )}
           {isFolder && (
             <Button 
               icon="pi pi-plus" 
@@ -651,6 +684,102 @@ const App = () => {
   const onNodeContextMenu = (event, node) => {
     event.preventDefault();
     // Aquí podrías mostrar un menú contextual (se implementará después)
+  };
+
+  // Función recursiva para obtener todas las carpetas del árbol
+  const getAllFolders = (nodes, prefix = '') => {
+    let folders = [];
+    for (const node of nodes) {
+      if (node.droppable) {
+        folders.push({ label: prefix + node.label, value: node.key });
+        if (node.children && node.children.length > 0) {
+          folders = folders.concat(getAllFolders(node.children, prefix + node.label + ' / '));
+        }
+      }
+    }
+    return folders;
+  };
+
+  // Función para crear una nueva conexión SSH
+  const createNewSSH = () => {
+    if (!sshName.trim() || !sshHost.trim() || !sshUser.trim()) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Todos los campos son obligatorios',
+        life: 3000
+      });
+      return;
+    }
+    const newKey = generateNextKey(sshTargetFolder);
+    const newSSHNode = {
+      key: newKey,
+      label: sshName.trim(),
+      data: { host: sshHost.trim(), user: sshUser.trim(), type: 'ssh' },
+      draggable: true,
+      uid: `ssh_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+      createdAt: new Date().toISOString(),
+      isUserCreated: true
+    };
+    const nodesCopy = deepCopy(nodes);
+    if (sshTargetFolder) {
+      const parentNode = findNodeByKey(nodesCopy, sshTargetFolder);
+      if (parentNode) {
+        parentNode.children = parentNode.children || [];
+        parentNode.children.push(newSSHNode);
+      } else {
+        nodesCopy.push(newSSHNode);
+      }
+    } else {
+      nodesCopy.push(newSSHNode);
+    }
+    updateNodesWithKeys(nodesCopy);
+    setShowSSHDialog(false);
+    setSSHName(''); setSSHHost(''); setSSHUser(''); setSSHTargetFolder(null);
+    toast.current.show({
+      severity: 'success',
+      summary: 'SSH añadida',
+      detail: `Conexión SSH "${sshName}" añadida al árbol`,
+      life: 3000
+    });
+  };
+
+  // Función para abrir el diálogo de edición SSH
+  const openEditSSHDialog = (node) => {
+    setEditSSHNode(node);
+    setEditSSHName(node.label);
+    setEditSSHHost(node.data?.host || '');
+    setEditSSHUser(node.data?.user || '');
+    setShowEditSSHDialog(true);
+  };
+
+  // Función para guardar la edición SSH
+  const saveEditSSH = () => {
+    if (!editSSHName.trim() || !editSSHHost.trim() || !editSSHUser.trim()) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Todos los campos son obligatorios',
+        life: 3000
+      });
+      return;
+    }
+    const nodesCopy = deepCopy(nodes);
+    const nodeToEdit = findNodeByKey(nodesCopy, editSSHNode.key);
+    if (nodeToEdit) {
+      nodeToEdit.label = editSSHName.trim();
+      nodeToEdit.data = { ...nodeToEdit.data, host: editSSHHost.trim(), user: editSSHUser.trim() };
+    }
+    updateNodesWithKeys(nodesCopy);
+    setShowEditSSHDialog(false);
+    setEditSSHNode(null);
+    setEditSSHName(''); setEditSSHHost(''); setEditSSHUser('');
+    toast.current.show({
+      severity: 'success',
+      summary: 'SSH editada',
+      detail: `Sesión SSH actualizada`,
+      life: 3000
+    });
   };
 
   return (
@@ -738,6 +867,68 @@ const App = () => {
                 if (e.key === 'Enter') createNewFolder();
               }}
             />
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Dialog para nueva sesión SSH */}
+      <Dialog
+        header="Nueva sesión SSH"
+        visible={showSSHDialog}
+        style={{ width: '25rem' }}
+        onHide={() => setShowSSHDialog(false)}
+        footer={
+          <div>
+            <Button label="Cancelar" icon="pi pi-times" onClick={() => setShowSSHDialog(false)} className="p-button-text" />
+            <Button label="Crear" icon="pi pi-check" onClick={createNewSSH} autoFocus />
+          </div>
+        }
+      >
+        <div className="p-fluid">
+          <div className="p-field">
+            <label htmlFor="sshName">Nombre</label>
+            <InputText id="sshName" value={sshName} onChange={e => setSSHName(e.target.value)} autoFocus />
+          </div>
+          <div className="p-field">
+            <label htmlFor="sshHost">Host</label>
+            <InputText id="sshHost" value={sshHost} onChange={e => setSSHHost(e.target.value)} />
+          </div>
+          <div className="p-field">
+            <label htmlFor="sshUser">Usuario</label>
+            <InputText id="sshUser" value={sshUser} onChange={e => setSSHUser(e.target.value)} />
+          </div>
+          <div className="p-field">
+            <label htmlFor="sshTargetFolder">Carpeta destino</label>
+            <Dropdown id="sshTargetFolder" value={sshTargetFolder} options={getAllFolders(nodes)} onChange={e => setSSHTargetFolder(e.value)} placeholder="Selecciona una carpeta (opcional)" showClear filter />
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Dialog para editar sesión SSH */}
+      <Dialog
+        header="Editar sesión SSH"
+        visible={showEditSSHDialog}
+        style={{ width: '25rem' }}
+        onHide={() => setShowEditSSHDialog(false)}
+        footer={
+          <div>
+            <Button label="Cancelar" icon="pi pi-times" onClick={() => setShowEditSSHDialog(false)} className="p-button-text" />
+            <Button label="Guardar" icon="pi pi-check" onClick={saveEditSSH} autoFocus />
+          </div>
+        }
+      >
+        <div className="p-fluid">
+          <div className="p-field">
+            <label htmlFor="editSSHName">Nombre</label>
+            <InputText id="editSSHName" value={editSSHName} onChange={e => setEditSSHName(e.target.value)} autoFocus />
+          </div>
+          <div className="p-field">
+            <label htmlFor="editSSHHost">Host</label>
+            <InputText id="editSSHHost" value={editSSHHost} onChange={e => setEditSSHHost(e.target.value)} />
+          </div>
+          <div className="p-field">
+            <label htmlFor="editSSHUser">Usuario</label>
+            <InputText id="editSSHUser" value={editSSHUser} onChange={e => setEditSSHUser(e.target.value)} />
           </div>
         </div>
       </Dialog>

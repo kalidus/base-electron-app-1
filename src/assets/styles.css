@@ -53,7 +53,8 @@ html, body {
 }
 
 .sidebar-tree .pi {
-  font-size: 0.7rem !important;
+  font-size: 1.5em;
+  vertical-align: middle;
 }
 
 .p-splitter-panel h3 {
