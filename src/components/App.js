@@ -5,9 +5,15 @@ import { Tree } from 'primereact/tree';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
+import { Button } from 'primereact/button';
+import { Dialog } from 'primereact/dialog';
+import { InputText } from 'primereact/inputtext';
 
 const App = () => {
   const toast = useRef(null);
+  const [folderName, setFolderName] = useState('');
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [parentNodeKey, setParentNodeKey] = useState(null);
   
   // Menu items for the top menubar
   const menuItems = [
@@ -17,7 +23,18 @@ const App = () => {
       items: [
         {
           label: 'Nuevo',
-          icon: 'pi pi-fw pi-plus'
+          icon: 'pi pi-fw pi-plus',
+          items: [
+            {
+              label: 'Nueva Carpeta',
+              icon: 'pi pi-fw pi-folder',
+              command: () => openNewFolderDialog(null)
+            },
+            {
+              label: 'Nuevo Archivo',
+              icon: 'pi pi-fw pi-file'
+            }
+          ]
         },
         {
           label: 'Abrir',
@@ -128,6 +145,10 @@ const App = () => {
   // Function to find a node by key
   const findNodeByKey = (nodes, key) => {
     // Handle root level nodes
+    if (key === null) {
+      return null;
+    }
+    
     if (key.indexOf('-') === -1) {
       return nodes.find(node => node.key === key);
     }
@@ -211,6 +232,134 @@ const App = () => {
       toast.current.show({severity: 'error', summary: 'Error', detail: 'No se pudo mover el elemento', life: 3000});
     }
   };
+  
+  // Generate next key based on parent key
+  const generateNextKey = (parentKey) => {
+    if (parentKey === null) {
+      // Root level - find the next available key
+      const existingKeys = nodes.map(node => parseInt(node.key, 10));
+      const nextKey = Math.max(...existingKeys, -1) + 1;
+      return nextKey.toString();
+    }
+    
+    // Find the parent node
+    const parentNode = findNodeByKey(nodes, parentKey);
+    if (!parentNode) {
+      console.error("Parent node not found:", parentKey);
+      return null;
+    }
+    
+    // If parent has no children yet, create first child
+    if (!parentNode.children || parentNode.children.length === 0) {
+      return `${parentKey}-0`;
+    }
+    
+    // Otherwise, find the next available child key
+    const childKeys = parentNode.children.map(child => {
+      const lastPart = child.key.split('-').pop();
+      return parseInt(lastPart, 10);
+    });
+    
+    const nextChildIndex = Math.max(...childKeys) + 1;
+    return `${parentKey}-${nextChildIndex}`;
+  };
+  
+  // Open dialog to create a new folder
+  const openNewFolderDialog = (parentKey) => {
+    setParentNodeKey(parentKey);
+    setFolderName('');
+    setShowFolderDialog(true);
+  };
+  
+  // Create a new folder
+  const createNewFolder = () => {
+    if (!folderName.trim()) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'El nombre de carpeta no puede estar vacío',
+        life: 3000
+      });
+      return;
+    }
+    
+    try {
+      const newKey = generateNextKey(parentNodeKey);
+      const newFolder = {
+        key: newKey,
+        label: folderName.trim(),
+        icon: 'pi pi-fw pi-folder',
+        droppable: true,
+        children: []
+      };
+      
+      const nodesCopy = deepCopy(nodes);
+      
+      if (parentNodeKey === null) {
+        // Add to root level
+        nodesCopy.push(newFolder);
+      } else {
+        // Add to specific parent
+        const parentNode = findNodeByKey(nodesCopy, parentNodeKey);
+        if (!parentNode) {
+          throw new Error(`Parent node with key ${parentNodeKey} not found`);
+        }
+        
+        parentNode.children = parentNode.children || [];
+        parentNode.children.push(newFolder);
+      }
+      
+      setNodes(nodesCopy);
+      setShowFolderDialog(false);
+      toast.current.show({
+        severity: 'success',
+        summary: 'Éxito',
+        detail: `Carpeta "${folderName}" creada`,
+        life: 3000
+      });
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'No se pudo crear la carpeta',
+        life: 3000
+      });
+    }
+  };
+  
+  // Node context menu
+  const nodeTemplate = (node, options) => {
+    const isFolder = node.droppable;
+    
+    return (
+      <div className="flex align-items-center gap-2" onContextMenu={(e) => onNodeContextMenu(e, node)}>
+        <span className={options.icon}></span>
+        <span>{node.label}</span>
+        {isFolder && (
+          <Button 
+            icon="pi pi-plus" 
+            rounded 
+            text 
+            size="small" 
+            className="ml-auto node-action-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openNewFolderDialog(node.key);
+            }}
+            tooltip="Crear carpeta"
+            tooltipOptions={{ position: 'top' }}
+          />
+        )}
+      </div>
+    );
+  };
+
+  // Context menu for nodes
+  const onNodeContextMenu = (event, node) => {
+    event.preventDefault();
+    // Aquí podrías mostrar un menú contextual (se implementará después)
+  };
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -223,16 +372,33 @@ const App = () => {
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <Splitter style={{ height: '100%' }}>
           {/* Left sidebar with tree */}
-          <SplitterPanel size={20} minSize={10} style={{ overflow: 'auto' }}>
-            <Tree 
-              value={nodes} 
-              selectionMode="single" 
-              selectionKeys={selectedNodeKey} 
-              onSelectionChange={e => setSelectedNodeKey(e.value)} 
-              dragdropScope="files"
-              onDragDrop={onDragDrop}
-              className="w-full"
-            />
+          <SplitterPanel size={20} minSize={10} style={{ overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="p-2 flex justify-content-between align-items-center">
+              <h3 className="m-0">Explorador</h3>
+              <Button 
+                icon="pi pi-plus" 
+                rounded 
+                size="small" 
+                onClick={() => openNewFolderDialog(null)}
+                tooltip="Crear carpeta raíz"
+                tooltipOptions={{ position: 'top' }}
+              />
+            </div>
+            <div style={{ height: '100%', overflow: 'auto', flex: 1 }}>
+              <Tree 
+                value={nodes} 
+                selectionMode="single" 
+                selectionKeys={selectedNodeKey} 
+                onSelectionChange={e => setSelectedNodeKey(e.value)} 
+                dragdropScope="files"
+                onDragDrop={onDragDrop}
+                className="w-full h-full"
+                nodeTemplate={nodeTemplate}
+                filter
+                filterMode="strict"
+                filterPlaceholder="Buscar..."
+              />
+            </div>
           </SplitterPanel>
           
           {/* Main content area */}
@@ -243,16 +409,46 @@ const App = () => {
               </p>
               {selectedNodeKey && (
                 <div className="mt-3">
-                  <p>Archivo seleccionado: {Object.keys(selectedNodeKey)[0]}</p>
+                  <p>Elemento seleccionado: {Object.keys(selectedNodeKey)[0]}</p>
                 </div>
               )}
               <div className="mt-3">
                 <p>Puedes arrastrar y soltar elementos en el panel lateral para reorganizarlos.</p>
+                <p>Haz clic en el botón "+" para crear carpetas nuevas.</p>
               </div>
             </Card>
           </SplitterPanel>
         </Splitter>
       </div>
+      
+      {/* Dialog for creating new folder */}
+      <Dialog 
+        header="Crear Nueva Carpeta" 
+        visible={showFolderDialog} 
+        style={{ width: '30rem' }}
+        onHide={() => setShowFolderDialog(false)}
+        footer={(
+          <div>
+            <Button label="Cancelar" icon="pi pi-times" onClick={() => setShowFolderDialog(false)} className="p-button-text" />
+            <Button label="Crear" icon="pi pi-check" onClick={createNewFolder} autoFocus />
+          </div>
+        )}
+      >
+        <div className="p-fluid">
+          <div className="p-field">
+            <label htmlFor="folderName">Nombre de la carpeta</label>
+            <InputText
+              id="folderName"
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') createNewFolder();
+              }}
+            />
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 };

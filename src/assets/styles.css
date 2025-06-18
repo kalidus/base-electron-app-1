@@ -17,6 +17,35 @@ html, body {
   border: none;
 }
 
+/* Asegurar que el Tree se adapte al redimensionamiento */
+.p-tree {
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+}
+
+.p-splitter-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Estilos para botones de acción en los nodos */
+.node-action-button {
+  visibility: hidden;
+  margin-left: auto;
+}
+
+.p-treenode:hover .node-action-button {
+  visibility: visible;
+}
+
+/* Estilos para la cabecera del explorador */
+.p-tree-filter-container {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0 0.5rem;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
