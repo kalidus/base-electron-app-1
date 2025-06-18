@@ -99,6 +99,22 @@ const App = () => {
               life: 3000
             });
           }
+        },
+        {
+          separator: true
+        },
+        {
+          label: 'Regenerar keys',
+          icon: 'pi pi-fw pi-wrench',
+          command: () => {
+            updateNodesWithKeys(nodes);
+            toast.current.show({
+              severity: 'success',
+              summary: 'Keys regeneradas',
+              detail: 'Se han regenerado todas las keys del árbol',
+              life: 3000
+            });
+          }
         }
       ]
     },
@@ -177,6 +193,9 @@ const App = () => {
   // Selected node in the tree
   const [selectedNodeKey, setSelectedNodeKey] = useState(null);
 
+  // Track the currently dragged node
+  const [draggedNodeKey, setDraggedNodeKey] = useState(null);
+
   // Auto-save to localStorage whenever nodes change
   useEffect(() => {
     try {
@@ -192,52 +211,165 @@ const App = () => {
     return JSON.parse(JSON.stringify(obj));
   };
 
-  // Function to find a node by key
-  const findNodeByKey = (nodes, key) => {
-    // Handle root level nodes
-    if (key === null) {
-      return null;
-    }
-    
-    if (key.indexOf('-') === -1) {
-      return nodes.find(node => node.key === key);
-    }
-    
-    const parts = key.split('-');
-    let currentNodes = nodes;
-    let currentNode = null;
-    
-    // Navigate through the tree
-    for (let i = 0; i < parts.length; i++) {
-      const currentKey = parts.slice(0, i + 1).join('-');
-      currentNode = currentNodes.find(node => node.key === currentKey);
+  // Function to regenerate keys for the entire tree
+  const regenerateKeys = (nodes, parentKey = null) => {
+    return nodes.map((node, index) => {
+      const newKey = parentKey ? `${parentKey}-${index}` : index.toString();
+      const newNode = {
+        ...node,
+        key: newKey
+      };
       
-      if (!currentNode) return null;
-      if (i < parts.length - 1) {
-        currentNodes = currentNode.children || [];
+      if (node.children && node.children.length > 0) {
+        newNode.children = regenerateKeys(node.children, newKey);
+      }
+      
+      return newNode;
+    });
+  };
+
+
+
+  // Helper function to update nodes with automatic key regeneration
+  const updateNodesWithKeys = (newNodes, message = 'Operación completada') => {
+    const nodesWithUpdatedKeys = regenerateKeys(newNodes);
+    setNodes(nodesWithUpdatedKeys);
+    return nodesWithUpdatedKeys;
+  };
+
+  // Function to find a node by key (recursive search)
+  const findNodeByKey = (nodes, key) => {
+    if (key === null) return null;
+    
+    for (let node of nodes) {
+      if (node.key === key) {
+        return node;
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findNodeByKey(node.children, key);
+        if (found) return found;
       }
     }
-    
-    return currentNode;
+    return null;
   };
 
-  // Function to find parent node and index
-  const findParentNodeAndIndex = (nodes, key) => {
-    if (key.indexOf('-') === -1) {
-      // Root level node
-      const index = nodes.findIndex(node => node.key === key);
-      return { parent: null, index, parentList: nodes };
+  // Function to find a node by UID (most robust)
+  const findNodeByUID = (nodes, uid) => {
+    for (let node of nodes) {
+      if (node.uid === uid) {
+        return node;
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findNodeByUID(node.children, uid);
+        if (found) return found;
+      }
     }
-    
-    const parentKey = key.substring(0, key.lastIndexOf('-'));
-    const parentNode = parentKey ? findNodeByKey(nodes, parentKey) : null;
-    const parentList = parentNode ? parentNode.children : nodes;
-    const index = parentList.findIndex(node => node.key === key);
-    
-    return { parent: parentNode, index, parentList };
+    return null;
   };
 
-  // Handle drag and drop
+  // Function to find parent and index by UID
+  const findParentNodeAndIndexByUID = (nodes, uid) => {
+    const searchInLevel = (currentNodes, parentNode = null) => {
+      for (let i = 0; i < currentNodes.length; i++) {
+        const node = currentNodes[i];
+        if (node.uid === uid) {
+          return { parent: parentNode, index: i, parentList: currentNodes, node: node };
+        }
+        if (node.children && node.children.length > 0) {
+          const result = searchInLevel(node.children, node);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+    
+    const result = searchInLevel(nodes);
+    return result || { parent: null, index: -1, parentList: [], node: null };
+  };
+
+  // Function to find a node by unique properties (more robust than key-only search)
+  const findNodeByProperties = (nodes, targetNode) => {
+    for (let node of nodes) {
+      if (node.label === targetNode.label && 
+          node.icon === targetNode.icon && 
+          node.droppable === targetNode.droppable) {
+        return node;
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findNodeByProperties(node.children, targetNode);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  // Function to find parent node and index (recursive search)
+  const findParentNodeAndIndex = (nodes, key) => {
+    // Search recursively through all levels
+    const searchInLevel = (currentNodes, parentNode = null) => {
+      for (let i = 0; i < currentNodes.length; i++) {
+        const node = currentNodes[i];
+        if (node.key === key) {
+          return { parent: parentNode, index: i, parentList: currentNodes };
+        }
+        if (node.children && node.children.length > 0) {
+          const result = searchInLevel(node.children, node);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+    
+    const result = searchInLevel(nodes);
+    return result || { parent: null, index: -1, parentList: [] };
+  };
+
+  // Handle drop to root area
+  const handleDropToRoot = (e) => {
+    if (!draggedNodeKey) {
+      return;
+    }
+
+    try {
+      const nodesCopy = deepCopy(nodes);
+      
+      // Find and remove the dragged node from its current position
+      const dragNodeInfo = findParentNodeAndIndex(nodesCopy, draggedNodeKey);
+      if (dragNodeInfo.index === -1) {
+        console.error("❌ Drag node not found for root drop:", draggedNodeKey);
+        return;
+      }
+      
+      const dragNode = dragNodeInfo.parentList[dragNodeInfo.index];
+      
+      // Remove from current position
+      dragNodeInfo.parentList.splice(dragNodeInfo.index, 1);
+      
+      // Add to root level
+      nodesCopy.push(dragNode);
+      
+      // Update nodes with key regeneration
+      updateNodesWithKeys(nodesCopy);
+      setDraggedNodeKey(null);
+      
+      toast.current.show({
+        severity: 'success',
+        summary: 'Éxito',
+        detail: `"${dragNode.label}" movido a la raíz`,
+        life: 3000
+      });
+    } catch (error) {
+      console.error("❌ Error in drop to root:", error);
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: `Error al mover a la raíz: ${error.message}`,
+        life: 5000
+      });
+    }
+  };
+
+  // Handle drag and drop with UID preservation
   const onDragDrop = (event) => {
     try {
       const dragNodeKey = event.dragNode.key;
@@ -246,21 +378,52 @@ const App = () => {
       // Create deep copies to avoid mutation issues
       const nodesCopy = deepCopy(nodes);
       
-      // Find the drag node and its parent
-      const dragNodeInfo = findParentNodeAndIndex(nodesCopy, dragNodeKey);
+      // Find the drag node and its parent using multiple strategies
+      let dragNodeInfo = findParentNodeAndIndex(nodesCopy, dragNodeKey);
+      
+      // If key search fails, try UID search
       if (dragNodeInfo.index === -1) {
-        console.error("Drag node not found:", dragNodeKey);
+        const originalDragInfo = findParentNodeAndIndex(nodes, dragNodeKey);
+        if (originalDragInfo.index !== -1) {
+          const originalNode = originalDragInfo.parentList[originalDragInfo.index];
+          if (originalNode.uid) {
+            dragNodeInfo = findParentNodeAndIndexByUID(nodesCopy, originalNode.uid);
+          }
+        }
+      }
+      
+      if (dragNodeInfo.index === -1) {
+        console.error("❌ Drag node not found with any strategy:", dragNodeKey);
+        toast.current.show({severity: 'error', summary: 'Error', detail: 'No se encontró el elemento a mover', life: 3000});
         return;
       }
       
       // Get the actual drag node and remove it from its parent
       const dragNode = dragNodeInfo.parentList[dragNodeInfo.index];
+      
+      // Preserve original UID if it doesn't exist
+      if (!dragNode.uid && dragNode.isUserCreated) {
+        dragNode.uid = `node_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+      }
+      
       dragNodeInfo.parentList.splice(dragNodeInfo.index, 1);
       
-      // Find the drop node
-      const dropNode = findNodeByKey(nodesCopy, dropNodeKey);
+      // Find the drop node using multiple strategies
+      let dropNode = findNodeByKey(nodesCopy, dropNodeKey);
+      
       if (!dropNode) {
-        console.error("Drop node not found:", dropNodeKey);
+        const originalDropInfo = findParentNodeAndIndex(nodes, dropNodeKey);
+        if (originalDropInfo.index !== -1) {
+          const originalDropNode = originalDropInfo.parentList[originalDropInfo.index];
+          if (originalDropNode.uid) {
+            dropNode = findNodeByUID(nodesCopy, originalDropNode.uid);
+          }
+        }
+      }
+      
+      if (!dropNode) {
+        console.error("❌ Drop node not found with any strategy:", dropNodeKey);
+        toast.current.show({severity: 'error', summary: 'Error', detail: 'No se encontró el destino', life: 3000});
         return;
       }
       
@@ -274,44 +437,28 @@ const App = () => {
         dropNodeInfo.parentList.splice(dropNodeInfo.index + 1, 0, dragNode);
       }
       
-      // Update the state with the new tree structure
-      setNodes(nodesCopy);
-      toast.current.show({severity: 'success', summary: 'Éxito', detail: 'Elemento movido', life: 3000});
+      // Update nodes with automatic key regeneration
+      updateNodesWithKeys(nodesCopy);
+      setDraggedNodeKey(null); // Clear dragged node
+      toast.current.show({severity: 'success', summary: 'Éxito', detail: 'Elemento movido correctamente', life: 3000});
     } catch (error) {
-      console.error("Error during drag and drop:", error);
-      toast.current.show({severity: 'error', summary: 'Error', detail: 'No se pudo mover el elemento', life: 3000});
+      console.error("❌ Error during drag and drop:", error);
+      toast.current.show({severity: 'error', summary: 'Error', detail: `Error en drag & drop: ${error.message}`, life: 5000});
     }
   };
   
-  // Generate next key based on parent key
+  // Generate next key based on parent key (simplified - will be regenerated anyway)
   const generateNextKey = (parentKey) => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    
     if (parentKey === null) {
-      // Root level - find the next available key
-      const existingKeys = nodes.map(node => parseInt(node.key, 10));
-      const nextKey = Math.max(...existingKeys, -1) + 1;
-      return nextKey.toString();
+      // Root level - use timestamp for uniqueness
+      return `temp_root_${timestamp}_${random}`;
+    } else {
+      // Child level - use parent key + timestamp for uniqueness
+      return `temp_child_${parentKey}_${timestamp}_${random}`;
     }
-    
-    // Find the parent node
-    const parentNode = findNodeByKey(nodes, parentKey);
-    if (!parentNode) {
-      console.error("Parent node not found:", parentKey);
-      return null;
-    }
-    
-    // If parent has no children yet, create first child
-    if (!parentNode.children || parentNode.children.length === 0) {
-      return `${parentKey}-0`;
-    }
-    
-    // Otherwise, find the next available child key
-    const childKeys = parentNode.children.map(child => {
-      const lastPart = child.key.split('-').pop();
-      return parseInt(lastPart, 10);
-    });
-    
-    const nextChildIndex = Math.max(...childKeys) + 1;
-    return `${parentKey}-${nextChildIndex}`;
   };
   
   // Open dialog to create a new folder
@@ -335,13 +482,20 @@ const App = () => {
     
     try {
       const newKey = generateNextKey(parentNodeKey);
+      
       const newFolder = {
         key: newKey,
         label: folderName.trim(),
         icon: 'pi pi-fw pi-folder',
         droppable: true,
-        children: []
+        children: [],
+        // Add unique persistent identifier
+        uid: `node_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+        createdAt: new Date().toISOString(),
+        isUserCreated: true
       };
+      
+
       
       const nodesCopy = deepCopy(nodes);
       
@@ -351,6 +505,7 @@ const App = () => {
       } else {
         // Add to specific parent
         const parentNode = findNodeByKey(nodesCopy, parentNodeKey);
+        
         if (!parentNode) {
           throw new Error(`Parent node with key ${parentNodeKey} not found`);
         }
@@ -359,12 +514,12 @@ const App = () => {
         parentNode.children.push(newFolder);
       }
       
-      setNodes(nodesCopy);
+      updateNodesWithKeys(nodesCopy);
       setShowFolderDialog(false);
       toast.current.show({
         severity: 'success',
         summary: 'Éxito',
-        detail: `Carpeta "${folderName}" creada`,
+        detail: `Carpeta "${folderName}" creada con keys actualizadas`,
         life: 3000
       });
     } catch (error) {
@@ -378,14 +533,43 @@ const App = () => {
     }
   };
   
-  // Delete node (folder or file)
+  // Delete node (folder or file) with multiple search strategies
   const deleteNode = (nodeKey) => {
     try {
       const nodesCopy = deepCopy(nodes);
-      const nodeInfo = findParentNodeAndIndex(nodesCopy, nodeKey);
+      
+      // Strategy 1: Try finding by key first
+      let nodeInfo = findParentNodeAndIndex(nodesCopy, nodeKey);
+      
+      // Strategy 2: If key search fails, try finding by UID or properties
+      if (nodeInfo.index === -1) {
+        // First get the original node from current state to extract UID
+        const originalNodeInfo = findParentNodeAndIndex(nodes, nodeKey);
+        if (originalNodeInfo.index !== -1) {
+          const originalNode = originalNodeInfo.parentList[originalNodeInfo.index];
+          
+          if (originalNode.uid) {
+            nodeInfo = findParentNodeAndIndexByUID(nodesCopy, originalNode.uid);
+          }
+          
+          // Strategy 3: If UID also fails, try by properties
+          if (nodeInfo.index === -1) {
+            const foundNode = findNodeByProperties(nodesCopy, originalNode);
+            if (foundNode) {
+              nodeInfo = findParentNodeAndIndex(nodesCopy, foundNode.key);
+            }
+          }
+        }
+      }
       
       if (nodeInfo.index === -1) {
-        console.error("Node not found:", nodeKey);
+        console.error("❌ Node not found with any strategy:", nodeKey);
+        toast.current.show({
+          severity: 'error',
+          summary: 'Error',
+          detail: `No se encontró el elemento para eliminar. Key: ${nodeKey}`,
+          life: 5000
+        });
         return;
       }
       
@@ -396,8 +580,8 @@ const App = () => {
       // Remove the node from its parent
       nodeInfo.parentList.splice(nodeInfo.index, 1);
       
-      // Update the state with the new tree structure
-      setNodes(nodesCopy);
+      // Update the state with automatic key regeneration
+      updateNodesWithKeys(nodesCopy);
       
       // If the deleted node was selected, clear selection
       if (selectedNodeKey && Object.keys(selectedNodeKey)[0] === nodeKey) {
@@ -407,16 +591,16 @@ const App = () => {
       toast.current.show({
         severity: 'success',
         summary: 'Éxito',
-        detail: `"${nodeName}" eliminado`,
+        detail: `"${nodeName}" eliminado correctamente`,
         life: 3000
       });
     } catch (error) {
-      console.error("Error deleting node:", error);
+      console.error("❌ Error deleting node:", error);
       toast.current.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'No se pudo eliminar el elemento',
-        life: 3000
+        detail: `Error al eliminar: ${error.message}`,
+        life: 5000
       });
     }
   };
@@ -499,30 +683,11 @@ const App = () => {
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <Splitter style={{ height: '100%' }}>
           {/* Left sidebar with tree */}
-          <SplitterPanel size={25} minSize={20} style={{ overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <SplitterPanel size={25} minSize={20} style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="p-2 flex justify-content-between align-items-center">
               <h3 className="m-0">Explorador</h3>
               <div className="flex gap-1">
-                <Button 
-                  icon="pi pi-info" 
-                  rounded 
-                  size="small" 
-                  severity="info"
-                  onClick={() => {
-                    const stored = localStorage.getItem(STORAGE_KEY);
-                    console.log('=== DEBUG PERSISTENCIA ===');
-                    console.log('Datos en localStorage:', stored);
-                    console.log('Datos actuales en estado:', nodes);
-                    toast.current.show({
-                      severity: 'info',
-                      summary: 'Debug',
-                      detail: stored ? 'Hay datos guardados. Ver consola.' : 'No hay datos guardados.',
-                      life: 4000
-                    });
-                  }}
-                  tooltip="Debug persistencia"
-                  tooltipOptions={{ position: 'top' }}
-                />
+
                 <Button 
                   icon="pi pi-plus" 
                   rounded 
@@ -533,7 +698,41 @@ const App = () => {
                 />
               </div>
             </div>
-            <div style={{ height: '100%', overflow: 'auto', flex: 1 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Área de drop para la raíz */}
+              <div 
+                style={{ 
+                  minHeight: '40px',
+                  border: '2px dashed #ccc',
+                  borderRadius: '4px',
+                  margin: '8px',
+                  padding: '8px',
+                  textAlign: 'center',
+                  backgroundColor: '#f9f9f9',
+                  fontSize: '12px',
+                  color: '#666'
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.backgroundColor = '#e3f2fd';
+                  e.currentTarget.style.borderColor = '#2196f3';
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f9f9f9';
+                  e.currentTarget.style.borderColor = '#ccc';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.backgroundColor = '#f9f9f9';
+                  e.currentTarget.style.borderColor = '#ccc';
+                  
+                  // Simular un drop en la raíz
+                  handleDropToRoot(e);
+                }}
+              >
+                Arrastra aquí para mover a la raíz
+              </div>
+              
               <Tree 
                 value={nodes} 
                 selectionMode="single" 
@@ -541,7 +740,14 @@ const App = () => {
                 onSelectionChange={e => setSelectedNodeKey(e.value)} 
                 dragdropScope="files"
                 onDragDrop={onDragDrop}
-                className="w-full h-full sidebar-tree"
+                onDragStart={(e) => {
+                  setDraggedNodeKey(e.node.key);
+                }}
+                onDragEnd={(e) => {
+                  // Don't clear draggedNodeKey here, it's needed for root drop
+                }}
+                className="w-full sidebar-tree"
+                style={{ flex: 1, overflow: 'hidden' }}
                 nodeTemplate={nodeTemplate}
                 filter
                 filterMode="strict"

@@ -21,12 +21,25 @@ html, body {
 .p-tree {
   height: 100%;
   width: 100%;
-  overflow: auto;
+  overflow: hidden;
+}
+
+/* Solo mostrar scroll cuando sea necesario en el contenido del Tree */
+.p-tree .p-tree-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
 }
 
 /* Optimizar el espacio en el árbol del panel lateral */
 .sidebar-tree {
   font-size: 0.9rem;
+  overflow: hidden;
+}
+
+.sidebar-tree .p-tree-container {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-tree .p-treenode-content {
