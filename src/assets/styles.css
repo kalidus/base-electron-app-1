@@ -11,48 +11,54 @@ html, body {
 
 .p-menubar {
   border-radius: 0;
+  min-height: 2.2rem !important;
+  height: 2.2rem !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.75rem !important;
+}
+
+.p-menubar .p-menuitem-link {
+  min-height: 2.2rem !important;
+  height: 2.2rem !important;
+  padding: 0 0.7rem !important;
+  font-size: 0.75rem !important;
+}
+
+.p-menubar .p-menuitem-text,
+.p-menubar .p-menuitem-icon {
+  font-size: 0.85em !important;
 }
 
 .p-splitter {
   border: none;
 }
 
-/* Asegurar que el Tree se adapte al redimensionamiento */
-.p-tree {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-}
-
-/* Solo mostrar scroll cuando sea necesario en el contenido del Tree */
-.p-tree .p-tree-container {
-  overflow-y: auto;
-  overflow-x: hidden;
-  height: 100%;
-}
-
-/* Optimizar el espacio en el árbol del panel lateral */
+/* Solo estilos visuales y de fuente para el tree */
 .sidebar-tree {
-  font-size: 0.9rem;
-  overflow: hidden;
-}
-
-.sidebar-tree .p-tree-container {
-  overflow-y: auto;
-  overflow-x: hidden;
+  font-size: 0.75rem;
 }
 
 .sidebar-tree .p-treenode-content {
-  padding: 0.3rem 0.5rem;
+  padding: 0.2rem 0.3rem;
+  min-height: 1.8rem;
 }
 
 .sidebar-tree .p-tree-container {
-  padding: 0.25rem;
+  padding: 0.15rem;
 }
 
-/* Ajustar el tamaño del título del panel */
+.sidebar-tree .p-treenode-icon {
+  font-size: 0.7rem !important;
+  margin-right: 0.3rem;
+}
+
+.sidebar-tree .pi {
+  font-size: 0.7rem !important;
+}
+
 .p-splitter-panel h3 {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
+  margin: 0.3rem 0;
 }
 
 .p-splitter-panel {
@@ -60,46 +66,53 @@ html, body {
   flex-direction: column;
 }
 
-/* Estilos para botones de acción en los nodos */
-.node-action-button {
-  visibility: hidden;
-  margin-left: auto;
-}
-
 .p-treenode:hover .node-action-button {
   visibility: visible;
 }
 
-/* Ajustar el espacio para el texto del nodo */
 .node-label {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1.2;
 }
 
-/* Dar más espacio a nodos con múltiples botones */
 .p-treenode-content {
   display: flex;
   width: 100%;
 }
 
-/* Asegurar que los íconos de botones sean consistentes */
 .node-action-button .p-button-icon {
-  font-size: 0.8rem;
+  font-size: 0.65rem;
 }
 
-/* Estilos para la cabecera del explorador */
+.node-action-button {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  margin-left: auto;
+  visibility: hidden;
+}
+
 .p-tree-filter-container {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
   padding: 0 0.5rem;
 }
 
-/* Mejorar la apariencia del campo de búsqueda */
 .p-tree-filter {
-  padding: 0.3rem 0.5rem !important;
-  font-size: 0.85rem;
+  padding: 0.25rem 0.4rem !important;
+  font-size: 0.75rem;
+}
+
+.p-splitter-panel .p-button {
+  width: 1.8rem !important;
+  height: 1.8rem !important;
+}
+
+.p-splitter-panel .p-button .p-button-icon {
+  font-size: 0.7rem !important;
 }
 
 /* Custom scrollbar */
@@ -119,4 +132,32 @@ html, body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Elimina cualquier borde azul o borde residual en el panel lateral y el tree */
+.p-splitter-panel,
+.sidebar-tree,
+.p-tree,
+.p-tree-container {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Override global para eliminar cualquier borde azul o sombra en toda la app */
+* {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Elimina cualquier borde, box-shadow y outline azul en toda la app, incluso en elementos enfocados y activos */
+*,
+*:focus,
+*:active,
+.p-splitter-panel,
+.p-splitter-panel:focus,
+.p-splitter-panel:active {
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
 } 

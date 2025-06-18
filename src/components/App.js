@@ -228,8 +228,6 @@ const App = () => {
     });
   };
 
-
-
   // Helper function to update nodes with automatic key regeneration
   const updateNodesWithKeys = (newNodes, message = 'Operación completada') => {
     const nodesWithUpdatedKeys = regenerateKeys(newNodes);
@@ -373,15 +371,25 @@ const App = () => {
   const onDragDrop = (event) => {
     try {
       const dragNodeKey = event.dragNode.key;
-      const dropNodeKey = event.dropNode.key;
-      
-      // Create deep copies to avoid mutation issues
+      const dropNodeKey = event.dropNode ? event.dropNode.key : null;
+
+      // Si dropNodeKey es null, es un drop en la raíz
+      if (dropNodeKey === null) {
+        const nodesCopy = deepCopy(nodes);
+        let dragNodeInfo = findParentNodeAndIndex(nodesCopy, dragNodeKey);
+        if (dragNodeInfo.index === -1) {
+          toast.current.show({severity: 'error', summary: 'Error', detail: 'No se encontró el elemento a mover', life: 3000});
+          return;
+        }
+        const [dragNode] = dragNodeInfo.parentList.splice(dragNodeInfo.index, 1);
+        nodesCopy.push(dragNode);
+        updateNodesWithKeys(nodesCopy, 'Nodo movido a la raíz');
+        return;
+      }
+
+      // Lógica normal para drop entre nodos
       const nodesCopy = deepCopy(nodes);
-      
-      // Find the drag node and its parent using multiple strategies
       let dragNodeInfo = findParentNodeAndIndex(nodesCopy, dragNodeKey);
-      
-      // If key search fails, try UID search
       if (dragNodeInfo.index === -1) {
         const originalDragInfo = findParentNodeAndIndex(nodes, dragNodeKey);
         if (originalDragInfo.index !== -1) {
@@ -391,58 +399,34 @@ const App = () => {
           }
         }
       }
-      
       if (dragNodeInfo.index === -1) {
-        console.error("❌ Drag node not found with any strategy:", dragNodeKey);
         toast.current.show({severity: 'error', summary: 'Error', detail: 'No se encontró el elemento a mover', life: 3000});
         return;
       }
-      
-      // Get the actual drag node and remove it from its parent
       const dragNode = dragNodeInfo.parentList[dragNodeInfo.index];
-      
-      // Preserve original UID if it doesn't exist
       if (!dragNode.uid && dragNode.isUserCreated) {
         dragNode.uid = `node_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
       }
-      
       dragNodeInfo.parentList.splice(dragNodeInfo.index, 1);
-      
-      // Find the drop node using multiple strategies
       let dropNode = findNodeByKey(nodesCopy, dropNodeKey);
-      
       if (!dropNode) {
-        const originalDropInfo = findParentNodeAndIndex(nodes, dropNodeKey);
-        if (originalDropInfo.index !== -1) {
-          const originalDropNode = originalDropInfo.parentList[originalDropInfo.index];
-          if (originalDropNode.uid) {
-            dropNode = findNodeByUID(nodesCopy, originalDropNode.uid);
-          }
+        const originalDropNode = findNodeByKey(nodes, dropNodeKey);
+        if (originalDropNode && originalDropNode.uid) {
+          dropNode = findNodeByUID(nodesCopy, originalDropNode.uid);
         }
       }
-      
       if (!dropNode) {
-        console.error("❌ Drop node not found with any strategy:", dropNodeKey);
-        toast.current.show({severity: 'error', summary: 'Error', detail: 'No se encontró el destino', life: 3000});
+        nodesCopy.push(dragNode);
+        updateNodesWithKeys(nodesCopy, 'Nodo movido a la raíz');
         return;
       }
-      
-      // If dropping on a folder (droppable node), add it as a child
-      if (dropNode.droppable) {
-        dropNode.children = dropNode.children || [];
-        dropNode.children.push(dragNode);
-      } else {
-        // If dropping on a file, add it as a sibling
-        const dropNodeInfo = findParentNodeAndIndex(nodesCopy, dropNodeKey);
-        dropNodeInfo.parentList.splice(dropNodeInfo.index + 1, 0, dragNode);
+      if (!dropNode.children) {
+        dropNode.children = [];
       }
-      
-      // Update nodes with automatic key regeneration
-      updateNodesWithKeys(nodesCopy);
-      setDraggedNodeKey(null); // Clear dragged node
-      toast.current.show({severity: 'success', summary: 'Éxito', detail: 'Elemento movido correctamente', life: 3000});
+      dropNode.children.push(dragNode);
+      updateNodesWithKeys(nodesCopy, 'Nodo movido');
     } catch (error) {
-      console.error("❌ Error during drag and drop:", error);
+      console.error('Error en drag & drop:', error);
       toast.current.show({severity: 'error', summary: 'Error', detail: `Error en drag & drop: ${error.message}`, life: 5000});
     }
   };
@@ -494,8 +478,6 @@ const App = () => {
         createdAt: new Date().toISOString(),
         isUserCreated: true
       };
-      
-
       
       const nodesCopy = deepCopy(nodes);
       
@@ -683,76 +665,30 @@ const App = () => {
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <Splitter style={{ height: '100%' }}>
           {/* Left sidebar with tree */}
-          <SplitterPanel size={25} minSize={20} style={{ display: 'flex', flexDirection: 'column' }}>
-            <div className="p-2 flex justify-content-between align-items-center">
-              <h3 className="m-0">Explorador</h3>
-              <div className="flex gap-1">
-
-                <Button 
-                  icon="pi pi-plus" 
-                  rounded 
-                  size="small" 
-                  onClick={() => openNewFolderDialog(null)}
-                  tooltip="Crear carpeta raíz"
-                  tooltipOptions={{ position: 'top' }}
+          <SplitterPanel size={25} minSize={20} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden'
+              }}>
+                <Tree
+                  value={nodes}
+                  selectionMode="single"
+                  selectionKeys={selectedNodeKey}
+                  onSelectionChange={e => setSelectedNodeKey(e.value)}
+                  dragdropScope="files"
+                  onDragDrop={onDragDrop}
+                  onDragStart={e => setDraggedNodeKey(e.node.key)}
+                  onDragEnd={() => {}}
+                  className="sidebar-tree"
+                  nodeTemplate={nodeTemplate}
+                  filter
+                  filterMode="strict"
+                  filterPlaceholder="Buscar..."
                 />
               </div>
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Área de drop para la raíz */}
-              <div 
-                style={{ 
-                  minHeight: '40px',
-                  border: '2px dashed #ccc',
-                  borderRadius: '4px',
-                  margin: '8px',
-                  padding: '8px',
-                  textAlign: 'center',
-                  backgroundColor: '#f9f9f9',
-                  fontSize: '12px',
-                  color: '#666'
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.backgroundColor = '#e3f2fd';
-                  e.currentTarget.style.borderColor = '#2196f3';
-                }}
-                onDragLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f9f9f9';
-                  e.currentTarget.style.borderColor = '#ccc';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.backgroundColor = '#f9f9f9';
-                  e.currentTarget.style.borderColor = '#ccc';
-                  
-                  // Simular un drop en la raíz
-                  handleDropToRoot(e);
-                }}
-              >
-                Arrastra aquí para mover a la raíz
-              </div>
-              
-              <Tree 
-                value={nodes} 
-                selectionMode="single" 
-                selectionKeys={selectedNodeKey} 
-                onSelectionChange={e => setSelectedNodeKey(e.value)} 
-                dragdropScope="files"
-                onDragDrop={onDragDrop}
-                onDragStart={(e) => {
-                  setDraggedNodeKey(e.node.key);
-                }}
-                onDragEnd={(e) => {
-                  // Don't clear draggedNodeKey here, it's needed for root drop
-                }}
-                className="w-full sidebar-tree"
-                style={{ flex: 1, overflow: 'hidden' }}
-                nodeTemplate={nodeTemplate}
-                filter
-                filterMode="strict"
-                filterPlaceholder="Buscar..."
-              />
             </div>
           </SplitterPanel>
           
