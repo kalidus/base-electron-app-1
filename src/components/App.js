@@ -8,6 +8,7 @@ import { useRef } from 'react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
+import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 
 const App = () => {
   const toast = useRef(null);
@@ -328,29 +329,105 @@ const App = () => {
     }
   };
   
+  // Delete node (folder or file)
+  const deleteNode = (nodeKey) => {
+    try {
+      const nodesCopy = deepCopy(nodes);
+      const nodeInfo = findParentNodeAndIndex(nodesCopy, nodeKey);
+      
+      if (nodeInfo.index === -1) {
+        console.error("Node not found:", nodeKey);
+        return;
+      }
+      
+      // Get node before deletion
+      const nodeToDelete = nodeInfo.parentList[nodeInfo.index];
+      const nodeName = nodeToDelete.label;
+      
+      // Remove the node from its parent
+      nodeInfo.parentList.splice(nodeInfo.index, 1);
+      
+      // Update the state with the new tree structure
+      setNodes(nodesCopy);
+      
+      // If the deleted node was selected, clear selection
+      if (selectedNodeKey && Object.keys(selectedNodeKey)[0] === nodeKey) {
+        setSelectedNodeKey(null);
+      }
+      
+      toast.current.show({
+        severity: 'success',
+        summary: 'Éxito',
+        detail: `"${nodeName}" eliminado`,
+        life: 3000
+      });
+    } catch (error) {
+      console.error("Error deleting node:", error);
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'No se pudo eliminar el elemento',
+        life: 3000
+      });
+    }
+  };
+  
+  // Confirm node deletion
+  const confirmDeleteNode = (nodeKey, nodeName, hasChildren) => {
+    const message = hasChildren
+      ? `¿Estás seguro de que deseas eliminar la carpeta "${nodeName}" y todo su contenido?`
+      : `¿Estás seguro de que deseas eliminar "${nodeName}"?`;
+    
+    confirmDialog({
+      message: message,
+      header: 'Confirmar eliminación',
+      icon: 'pi pi-exclamation-triangle',
+      acceptClassName: 'p-button-danger',
+      accept: () => deleteNode(nodeKey),
+      reject: () => {}
+    });
+  };
+  
   // Node context menu
   const nodeTemplate = (node, options) => {
     const isFolder = node.droppable;
+    const hasChildren = isFolder && node.children && node.children.length > 0;
     
     return (
       <div className="flex align-items-center gap-2" onContextMenu={(e) => onNodeContextMenu(e, node)}>
         <span className={options.icon}></span>
-        <span>{node.label}</span>
-        {isFolder && (
+        <span className="node-label">{node.label}</span>
+        <div className="ml-auto flex">
+          {isFolder && (
+            <Button 
+              icon="pi pi-plus" 
+              rounded 
+              text 
+              size="small" 
+              className="node-action-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNewFolderDialog(node.key);
+              }}
+              tooltip="Crear carpeta"
+              tooltipOptions={{ position: 'top' }}
+            />
+          )}
           <Button 
-            icon="pi pi-plus" 
+            icon="pi pi-trash" 
             rounded 
             text 
+            severity="danger" 
             size="small" 
-            className="ml-auto node-action-button"
+            className="node-action-button ml-1"
             onClick={(e) => {
               e.stopPropagation();
-              openNewFolderDialog(node.key);
+              confirmDeleteNode(node.key, node.label, hasChildren);
             }}
-            tooltip="Crear carpeta"
+            tooltip="Eliminar"
             tooltipOptions={{ position: 'top' }}
           />
-        )}
+        </div>
       </div>
     );
   };
@@ -364,6 +441,7 @@ const App = () => {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Toast ref={toast} />
+      <ConfirmDialog />
       
       {/* Top menubar */}
       <Menubar model={menuItems} />
@@ -415,6 +493,7 @@ const App = () => {
               <div className="mt-3">
                 <p>Puedes arrastrar y soltar elementos en el panel lateral para reorganizarlos.</p>
                 <p>Haz clic en el botón "+" para crear carpetas nuevas.</p>
+                <p>Para eliminar un elemento, haz clic en el botón de la papelera que aparece al pasar el ratón.</p>
               </div>
             </Card>
           </SplitterPanel>

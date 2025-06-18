@@ -57,6 +57,25 @@ html, body {
   visibility: visible;
 }
 
+/* Ajustar el espacio para el texto del nodo */
+.node-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dar más espacio a nodos con múltiples botones */
+.p-treenode-content {
+  display: flex;
+  width: 100%;
+}
+
+/* Asegurar que los íconos de botones sean consistentes */
+.node-action-button .p-button-icon {
+  font-size: 0.8rem;
+}
+
 /* Estilos para la cabecera del explorador */
 .p-tree-filter-container {
   margin-top: 0.5rem;
