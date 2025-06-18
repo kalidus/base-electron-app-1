@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Menubar } from 'primereact/menubar';
 import { Splitter, SplitterPanel } from 'primereact/splitter';
 import { Tree } from 'primereact/tree';
@@ -15,6 +15,9 @@ const App = () => {
   const [folderName, setFolderName] = useState('');
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [parentNodeKey, setParentNodeKey] = useState(null);
+
+  // Storage key for persistence
+  const STORAGE_KEY = 'basicapp2_tree_data';
   
   // Menu items for the top menubar
   const menuItems = [
@@ -79,6 +82,23 @@ const App = () => {
         {
           label: 'Panel lateral',
           icon: 'pi pi-fw pi-list'
+        },
+        {
+          separator: true
+        },
+        {
+          label: 'Resetear datos',
+          icon: 'pi pi-fw pi-refresh',
+          command: () => {
+            const defaultNodes = getDefaultNodes();
+            setNodes(defaultNodes);
+            toast.current.show({
+              severity: 'info',
+              summary: 'Datos reseteados',
+              detail: 'Se han restaurado los datos por defecto',
+              life: 3000
+            });
+          }
         }
       ]
     },
@@ -94,8 +114,8 @@ const App = () => {
     }
   ];
 
-  // Tree data for the sidebar
-  const [nodes, setNodes] = useState([
+  // Default tree data
+  const getDefaultNodes = () => [
     {
       key: '0',
       label: 'Proyectos',
@@ -133,10 +153,39 @@ const App = () => {
         { key: '1-1', label: 'Documento 2.docx', icon: 'pi pi-fw pi-file', draggable: true }
       ]
     }
-  ]);
+  ];
+
+  // Load initial data from localStorage or use defaults
+  const loadInitialNodes = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        console.log('📂 Datos cargados desde localStorage:', parsed);
+        return parsed;
+      }
+    } catch (error) {
+      console.error('❌ Error cargando datos guardados:', error);
+    }
+    console.log('🆕 Usando datos por defecto');
+    return getDefaultNodes();
+  };
+
+  // Tree data for the sidebar - loads from localStorage
+  const [nodes, setNodes] = useState(() => loadInitialNodes());
 
   // Selected node in the tree
   const [selectedNodeKey, setSelectedNodeKey] = useState(null);
+
+  // Auto-save to localStorage whenever nodes change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nodes));
+      console.log('✅ Datos guardados automáticamente en localStorage');
+    } catch (error) {
+      console.error('❌ Error guardando datos:', error);
+    }
+  }, [nodes]); // Se ejecuta cada vez que cambia el estado 'nodes'
 
   // Function to create a deep copy of nodes
   const deepCopy = (obj) => {
@@ -453,14 +502,36 @@ const App = () => {
           <SplitterPanel size={25} minSize={20} style={{ overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div className="p-2 flex justify-content-between align-items-center">
               <h3 className="m-0">Explorador</h3>
-              <Button 
-                icon="pi pi-plus" 
-                rounded 
-                size="small" 
-                onClick={() => openNewFolderDialog(null)}
-                tooltip="Crear carpeta raíz"
-                tooltipOptions={{ position: 'top' }}
-              />
+              <div className="flex gap-1">
+                <Button 
+                  icon="pi pi-info" 
+                  rounded 
+                  size="small" 
+                  severity="info"
+                  onClick={() => {
+                    const stored = localStorage.getItem(STORAGE_KEY);
+                    console.log('=== DEBUG PERSISTENCIA ===');
+                    console.log('Datos en localStorage:', stored);
+                    console.log('Datos actuales en estado:', nodes);
+                    toast.current.show({
+                      severity: 'info',
+                      summary: 'Debug',
+                      detail: stored ? 'Hay datos guardados. Ver consola.' : 'No hay datos guardados.',
+                      life: 4000
+                    });
+                  }}
+                  tooltip="Debug persistencia"
+                  tooltipOptions={{ position: 'top' }}
+                />
+                <Button 
+                  icon="pi pi-plus" 
+                  rounded 
+                  size="small" 
+                  onClick={() => openNewFolderDialog(null)}
+                  tooltip="Crear carpeta raíz"
+                  tooltipOptions={{ position: 'top' }}
+                />
+              </div>
             </div>
             <div style={{ height: '100%', overflow: 'auto', flex: 1 }}>
               <Tree 
