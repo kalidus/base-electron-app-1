@@ -1,6 +1,7 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const url = require('url');
+const { ipcMain } = require('electron');
 
 let mainWindow;
 
@@ -47,4 +48,9 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
   }
+});
+
+// Permite cerrar la app desde el renderer (React) usando ipcRenderer
+ipcMain.on('app-quit', () => {
+  app.quit();
 }); 
