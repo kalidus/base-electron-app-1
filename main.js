@@ -80,7 +80,7 @@ ipcMain.handle('ssh-connect', async (event, { connectionId, host, username, pass
     conn.on('ready', () => {
       console.log(`SSH connection successful (ID: ${connectionId})`);
       
-      // Configure PTY with proper terminal modes
+      // Request an interactive login shell
       conn.shell({ 
         term: 'xterm-256color',
         rows: 24,
@@ -95,7 +95,7 @@ ipcMain.handle('ssh-connect', async (event, { connectionId, host, username, pass
           IUTF8: 1,     // UTF-8 input
           OPOST: 1      // Post-process output
         }
-      }, (err, stream) => {
+      }, async (err, stream) => {
         if (err) {
           console.error(`Failed to create shell (ID: ${connectionId}):`, err);
           conn.end();
@@ -106,7 +106,27 @@ ipcMain.handle('ssh-connect', async (event, { connectionId, host, username, pass
         // Configure stream with proper encoding
         stream.setEncoding('utf8');
 
-        // Handle data events
+        // Execute login shell to get system messages
+        conn.exec('bash -l', (err, stream) => {
+          if (err) {
+            console.error(`Failed to start login shell (ID: ${connectionId}):`, err);
+            return;
+          }
+
+          stream.on('data', (data) => {
+            if (mainWindow) {
+              mainWindow.webContents.send(`ssh-data-${connectionId}`, data.toString('utf8'));
+            }
+          });
+
+          stream.stderr.on('data', (data) => {
+            if (mainWindow) {
+              mainWindow.webContents.send(`ssh-data-${connectionId}`, data.toString('utf8'));
+            }
+          });
+        });
+
+        // Handle regular shell data events
         stream.on('data', (data) => {
           if (mainWindow) {
             mainWindow.webContents.send(`ssh-data-${connectionId}`, data.toString('utf8'));
@@ -149,7 +169,8 @@ ipcMain.handle('ssh-connect', async (event, { connectionId, host, username, pass
       readyTimeout: 20000,
       keepaliveInterval: 10000,
       keepaliveCountMax: 3,
-      debug: (msg) => console.log(`SSH Debug (${connectionId}):`, msg)
+      // Request TTY
+      pty: true
     });
   });
 });
