@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Menubar } from 'primereact/menubar';
 import { Splitter, SplitterPanel } from 'primereact/splitter';
 import { Tree } from 'primereact/tree';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
-import { useRef } from 'react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
@@ -13,6 +12,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Terminal } from 'primereact/terminal';
+import { TerminalService } from 'primereact/terminalservice';
 
 const App = () => {
   const toast = useRef(null);
@@ -668,20 +668,7 @@ const App = () => {
         onContextMenu={(e) => onNodeContextMenu(e, node)}
         onDoubleClick={isSSH ? (e) => {
           e.stopPropagation();
-          setSshTabs(prevTabs => {
-            // Crear un nuevo identificador único para la pestaña
-            const tabId = `${node.key}_${Date.now()}`;
-            const newTab = {
-              key: tabId,
-              label: `${node.label} (${prevTabs.filter(t => t.originalKey === node.key).length + 1})`,
-              host: node.data.host,
-              user: node.data.user,
-              originalKey: node.key // Guardamos la key original para contar instancias
-            };
-            const newTabs = [...prevTabs, newTab];
-            setActiveTabIndex(newTabs.length - 1);
-            return newTabs;
-          });
+          openSshTab({host: node.data.host, user: node.data.user, password: node.data.password, label: node.label, ...node.data});
         } : undefined}
       >
         <span className={iconClass} style={{ minWidth: 20 }}></span>
@@ -907,6 +894,280 @@ const App = () => {
     });
   };
 
+  // Al inicio del componente
+  let ipcRenderer = null;
+  try {
+    if (window && window.require) {
+      ipcRenderer = window.require('electron').ipcRenderer;
+    }
+  } catch (e) {}
+
+  // Generar un ID único para cada conexión
+  const generateConnectionId = () => `ssh_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+  // Función para abrir una nueva pestaña SSH y conectar
+  const openSshTab = async (tabData) => {
+    const connectionId = generateConnectionId();
+    console.log('Intentando abrir conexión SSH:', { host: tabData.host, user: tabData.user, connectionId });
+    
+    // Crear la pestaña en estado "conectando"
+    setSshTabs(prevTabs => {
+      const newTab = {
+        ...tabData,
+        key: connectionId,
+        connectionId,
+        label: `${tabData.label || tabData.user + '@' + tabData.host}`,
+        sshStatus: 'connecting',
+        sshError: null
+      };
+      setActiveTabIndex(prevTabs.length);
+      return [...prevTabs, newTab];
+    });
+
+    if (!ipcRenderer) {
+      console.error('ipcRenderer no está disponible');
+      setSshTabs(prevTabs => 
+        prevTabs.map(tab => 
+          tab.connectionId === connectionId 
+            ? { ...tab, sshStatus: 'error', sshError: 'No se puede conectar: ipcRenderer no disponible' }
+            : tab
+        )
+      );
+      return;
+    }
+
+    try {
+      console.log('Enviando solicitud de conexión SSH al proceso principal...');
+      const response = await ipcRenderer.invoke('ssh-connect', {
+        connectionId,
+        host: tabData.host,
+        username: tabData.user,
+        password: tabData.password
+      });
+      console.log('Respuesta de conexión SSH:', response);
+
+      if (response.success) {
+        console.log('Conexión SSH exitosa');
+        setSshTabs(prevTabs => 
+          prevTabs.map(tab => 
+            tab.connectionId === connectionId 
+              ? { ...tab, sshStatus: 'connected' }
+              : tab
+          )
+        );
+      } else {
+        throw new Error(response.message);
+      }
+    } catch (error) {
+      console.error('Error en la conexión SSH:', error);
+      setSshTabs(prevTabs => 
+        prevTabs.map(tab => 
+          tab.connectionId === connectionId 
+            ? { ...tab, sshStatus: 'error', sshError: error.message }
+            : tab
+        )
+      );
+    }
+  };
+
+  // Función para manejar comandos en el terminal
+  const handleCommand = async (connectionId, command) => {
+    if (!ipcRenderer) {
+      console.error('No se puede ejecutar el comando: ipcRenderer no disponible');
+      TerminalService.emit('response', { 
+        response: 'Error: No se puede ejecutar el comando - ipcRenderer no disponible' 
+      });
+      return;
+    }
+    
+    try {
+      console.log(`Ejecutando comando SSH (${connectionId}):`, command);
+      const response = await ipcRenderer.invoke('ssh-exec', { connectionId, command });
+      console.log(`Respuesta del comando SSH (${connectionId}):`, response);
+      
+      if (response.success) {
+        // Emitir el comando primero
+        TerminalService.emit('response', { response: command });
+        
+        // Luego emitir la salida
+        const output = response.stdout || response.stderr || '(No output)';
+        console.log(`Salida del comando (${connectionId}):`, output);
+        
+        // Asegurar que hay un salto de línea antes y después de la salida
+        TerminalService.emit('response', { 
+          response: `\n${output}\n`
+        });
+      } else {
+        // En caso de error, mostrar el comando y el error
+        TerminalService.emit('response', { response: command });
+        TerminalService.emit('response', { 
+          response: `\nError: ${response.message}\n` 
+        });
+      }
+    } catch (error) {
+      console.error(`Error ejecutando comando SSH (${connectionId}):`, error);
+      TerminalService.emit('response', { response: command });
+      TerminalService.emit('response', { 
+        response: `\nError executing command: ${error.message}\n` 
+      });
+    }
+  };
+
+  // Componente Terminal SSH
+  const SSHTerminal = ({ connectionId, status, error, host, user }) => {
+    const terminalRef = useRef(null);
+    const [terminal, setTerminal] = useState(null);
+    const [fitAddon, setFitAddon] = useState(null);
+
+    useEffect(() => {
+      const setupTerminal = async () => {
+        try {
+          const { Terminal } = await import('@xterm/xterm');
+          const { FitAddon } = await import('@xterm/addon-fit');
+          
+          // Import terminal styles
+          await import('@xterm/xterm/css/xterm.css');
+          
+          const term = new Terminal({
+            cursorBlink: true,
+            cursorStyle: 'block',
+            fontSize: 14,
+            fontFamily: 'Consolas, monospace',
+            theme: {
+              background: '#1e1e1e',
+              foreground: '#ffffff'
+            },
+            allowProposedApi: true,
+            convertEol: true,
+            scrollback: 5000
+          });
+
+          const fit = new FitAddon();
+          term.loadAddon(fit);
+          
+          if (terminalRef.current) {
+            // Clear terminal container before opening
+            terminalRef.current.innerHTML = '';
+            term.open(terminalRef.current);
+            fit.fit();
+            term.focus();
+            
+            // Handle window resize
+            const handleResize = () => {
+              fit.fit();
+              if (window.require) {
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.invoke('ssh-resize', {
+                  connectionId,
+                  rows: term.rows,
+                  cols: term.cols
+                });
+              }
+            };
+            
+            window.addEventListener('resize', handleResize);
+            
+            // Handle terminal input
+            term.onData(data => {
+              if (window.require) {
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.invoke('ssh-write', { connectionId, data })
+                  .catch(err => {
+                    console.error('Error writing to terminal:', err);
+                    term.write(`\r\nError: ${err.message}\r\n`);
+                  });
+              }
+            });
+
+            // Handle terminal data from main process
+            if (window.require) {
+              const { ipcRenderer } = window.require('electron');
+              
+              const dataHandler = (event, data) => {
+                if (term && data) {
+                  term.write(data);
+                }
+              };
+
+              const closeHandler = () => {
+                if (term) {
+                  term.write('\r\n\x1b[31mConnection closed\x1b[0m\r\n');
+                }
+              };
+
+              ipcRenderer.on(`ssh-data-${connectionId}`, dataHandler);
+              ipcRenderer.on(`ssh-close-${connectionId}`, closeHandler);
+
+              // Cleanup listeners on unmount
+              return () => {
+                window.removeEventListener('resize', handleResize);
+                ipcRenderer.removeListener(`ssh-data-${connectionId}`, dataHandler);
+                ipcRenderer.removeListener(`ssh-close-${connectionId}`, closeHandler);
+                term.dispose();
+              };
+            }
+
+            setTerminal(term);
+            setFitAddon(fit);
+          }
+        } catch (error) {
+          console.error('Error setting up terminal:', error);
+          if (terminalRef.current) {
+            terminalRef.current.innerHTML = `Error: ${error.message}`;
+          }
+        }
+      };
+
+      setupTerminal();
+    }, [connectionId]);
+
+    // Show error state if present
+    useEffect(() => {
+      if (error && terminal) {
+        terminal.write(`\r\n\x1b[31mError: ${error}\x1b[0m\r\n`);
+      }
+    }, [error, terminal]);
+
+    return (
+      <div 
+        ref={terminalRef} 
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          padding: '8px',
+          backgroundColor: '#1e1e1e'
+        }} 
+        onClick={() => terminal?.focus()}
+      />
+    );
+  };
+
+  // En el renderizado de las pestañas
+  const renderTabContent = (tab) => {
+    if (tab.type === 'ssh') {
+      return (
+        <SSHTerminal
+          connectionId={tab.connectionId}
+          status={tab.sshStatus}
+          error={tab.sshError}
+          host={tab.host}
+          user={tab.user}
+        />
+      );
+    }
+    // ... resto del código de renderizado ...
+  };
+
+  // Al cerrar una pestaña SSH, cerrar la conexión
+  const handleTabClose = (e) => {
+    const closedTab = sshTabs[e.index];
+    if (closedTab && closedTab.connectionId) {
+      ipcRenderer.invoke('ssh-disconnect', { connectionId: closedTab.connectionId });
+    }
+    setSshTabs(prevTabs => prevTabs.filter((_, i) => i !== e.index));
+    setActiveTabIndex(0);
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Toast ref={toast} />
@@ -991,7 +1252,7 @@ const App = () => {
                 }}
                 scrollable
               >
-                {sshTabs.map((tab, i) => (
+                {sshTabs.map((tab) => (
                   <TabPanel 
                     key={tab.key} 
                     header={tab.label} 
@@ -1003,16 +1264,7 @@ const App = () => {
                   >
                     <div className="ssh-terminal-container" style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
                       <div className="terminal-wrapper" style={{ flex: 1, backgroundColor: '#1e1e1e', borderRadius: '6px', padding: '1rem' }}>
-                        <Terminal
-                          welcomeMessage={`Conectado a ${tab.host} como ${tab.user}`}
-                          prompt={`${tab.user}@${tab.host}:~$`}
-                          pt={{
-                            root: { className: 'bg-gray-900 text-white border-round h-full' },
-                            command: { className: 'text-primary-300' },
-                            response: { className: 'text-white' },
-                            prompt: { className: 'text-gray-400 mr-2' }
-                          }}
-                        />
+                        {renderTabContent(tab)}
                       </div>
                     </div>
                   </TabPanel>
