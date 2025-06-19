@@ -11,6 +11,7 @@ import { InputText } from 'primereact/inputtext';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Dropdown } from 'primereact/dropdown';
 import { Sidebar } from 'primereact/sidebar';
+import { TabView, TabPanel } from 'primereact/tabview';
 
 const App = () => {
   const toast = useRef(null);
@@ -27,7 +28,16 @@ const App = () => {
   const [editSSHName, setEditSSHName] = useState('');
   const [editSSHHost, setEditSSHHost] = useState('');
   const [editSSHUser, setEditSSHUser] = useState('');
+  const [editSSHPassword, setEditSSHPassword] = useState('');
+  const [editSSHRemoteFolder, setEditSSHRemoteFolder] = useState('');
   const [showConfigDialog, setShowConfigDialog] = useState(false);
+  const [showEditFolderDialog, setShowEditFolderDialog] = useState(false);
+  const [editFolderNode, setEditFolderNode] = useState(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [sshTabs, setSshTabs] = useState([]);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [sshPassword, setSSHPassword] = useState('');
+  const [sshRemoteFolder, setSSHRemoteFolder] = useState('');
 
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
@@ -71,7 +81,31 @@ const App = () => {
         },
         {
           label: 'Salir',
-          icon: 'pi pi-fw pi-power-off'
+          icon: 'pi pi-fw pi-power-off',
+          command: () => {
+            try {
+              if (window && window.require) {
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.send('app-quit');
+              } else if (typeof window !== 'undefined' && window.navigator && window.navigator.userAgent.includes('Electron')) {
+                window.require('electron').ipcRenderer.send('app-quit');
+              } else {
+                toast.current.show({
+                  severity: 'info',
+                  summary: 'Solo en escritorio',
+                  detail: 'Esta opción solo está disponible en la app de escritorio (Electron).',
+                  life: 3000
+                });
+              }
+            } catch (e) {
+              toast.current.show({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'No se pudo cerrar la aplicación.',
+                life: 3000
+              });
+            }
+          }
         }
       ]
     },
@@ -629,7 +663,26 @@ const App = () => {
       iconClass = options.expanded ? 'pi pi-folder-open' : 'pi pi-folder';
     }
     return (
-      <div className="flex align-items-center gap-2" onContextMenu={(e) => onNodeContextMenu(e, node)}>
+      <div className="flex align-items-center gap-2"
+        onContextMenu={(e) => onNodeContextMenu(e, node)}
+        onDoubleClick={isSSH ? (e) => {
+          e.stopPropagation();
+          setSshTabs(prevTabs => {
+            // Crear un nuevo identificador único para la pestaña
+            const tabId = `${node.key}_${Date.now()}`;
+            const newTab = {
+              key: tabId,
+              label: `${node.label} (${prevTabs.filter(t => t.originalKey === node.key).length + 1})`,
+              host: node.data.host,
+              user: node.data.user,
+              originalKey: node.key // Guardamos la key original para contar instancias
+            };
+            const newTabs = [...prevTabs, newTab];
+            setActiveTabIndex(newTabs.length - 1);
+            return newTabs;
+          });
+        } : undefined}
+      >
         <span className={iconClass} style={{ minWidth: 20 }}></span>
         <span className="node-label">{node.label}</span>
         <div className="ml-auto flex">
@@ -649,19 +702,34 @@ const App = () => {
             />
           )}
           {isFolder && (
-            <Button 
-              icon="pi pi-plus" 
-              rounded 
-              text 
-              size="small" 
-              className="node-action-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openNewFolderDialog(node.key);
-              }}
-              tooltip="Crear carpeta"
-              tooltipOptions={{ position: 'top' }}
-            />
+            <>
+              <Button
+                icon="pi pi-pencil"
+                rounded
+                text
+                size="small"
+                className="node-action-button"
+                onClick={e => {
+                  e.stopPropagation();
+                  openEditFolderDialog(node);
+                }}
+                tooltip="Editar carpeta"
+                tooltipOptions={{ position: 'top' }}
+              />
+              <Button 
+                icon="pi pi-plus" 
+                rounded 
+                text 
+                size="small" 
+                className="node-action-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openNewFolderDialog(node.key);
+                }}
+                tooltip="Crear carpeta"
+                tooltipOptions={{ position: 'top' }}
+              />
+            </>
           )}
           <Button 
             icon="pi pi-trash" 
@@ -704,7 +772,7 @@ const App = () => {
 
   // Función para crear una nueva conexión SSH
   const createNewSSH = () => {
-    if (!sshName.trim() || !sshHost.trim() || !sshUser.trim()) {
+    if (!sshName.trim() || !sshHost.trim() || !sshUser.trim() || !sshPassword.trim()) {
       toast.current.show({
         severity: 'error',
         summary: 'Error',
@@ -717,7 +785,13 @@ const App = () => {
     const newSSHNode = {
       key: newKey,
       label: sshName.trim(),
-      data: { host: sshHost.trim(), user: sshUser.trim(), type: 'ssh' },
+      data: {
+        host: sshHost.trim(),
+        user: sshUser.trim(),
+        password: sshPassword.trim(),
+        remoteFolder: sshRemoteFolder.trim(),
+        type: 'ssh'
+      },
       draggable: true,
       uid: `ssh_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
       createdAt: new Date().toISOString(),
@@ -737,7 +811,7 @@ const App = () => {
     }
     updateNodesWithKeys(nodesCopy);
     setShowSSHDialog(false);
-    setSSHName(''); setSSHHost(''); setSSHUser(''); setSSHTargetFolder(null);
+    setSSHName(''); setSSHHost(''); setSSHUser(''); setSSHTargetFolder(null); setSSHPassword(''); setSSHRemoteFolder('');
     toast.current.show({
       severity: 'success',
       summary: 'SSH añadida',
@@ -752,16 +826,18 @@ const App = () => {
     setEditSSHName(node.label);
     setEditSSHHost(node.data?.host || '');
     setEditSSHUser(node.data?.user || '');
+    setEditSSHPassword(node.data?.password || '');
+    setEditSSHRemoteFolder(node.data?.remoteFolder || '');
     setShowEditSSHDialog(true);
   };
 
   // Función para guardar la edición SSH
   const saveEditSSH = () => {
-    if (!editSSHName.trim() || !editSSHHost.trim() || !editSSHUser.trim()) {
+    if (!editSSHName.trim() || !editSSHHost.trim() || !editSSHUser.trim() || !editSSHPassword.trim()) {
       toast.current.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Todos los campos son obligatorios',
+        detail: 'Todos los campos son obligatorios excepto la carpeta remota',
         life: 3000
       });
       return;
@@ -770,16 +846,62 @@ const App = () => {
     const nodeToEdit = findNodeByKey(nodesCopy, editSSHNode.key);
     if (nodeToEdit) {
       nodeToEdit.label = editSSHName.trim();
-      nodeToEdit.data = { ...nodeToEdit.data, host: editSSHHost.trim(), user: editSSHUser.trim() };
+      nodeToEdit.data = { 
+        ...nodeToEdit.data, 
+        host: editSSHHost.trim(), 
+        user: editSSHUser.trim(),
+        password: editSSHPassword.trim(),
+        remoteFolder: editSSHRemoteFolder.trim(),
+        type: 'ssh'
+      };
     }
     updateNodesWithKeys(nodesCopy);
     setShowEditSSHDialog(false);
     setEditSSHNode(null);
-    setEditSSHName(''); setEditSSHHost(''); setEditSSHUser('');
+    setEditSSHName(''); 
+    setEditSSHHost(''); 
+    setEditSSHUser('');
+    setEditSSHPassword('');
+    setEditSSHRemoteFolder('');
     toast.current.show({
       severity: 'success',
       summary: 'SSH editada',
       detail: `Sesión SSH actualizada`,
+      life: 3000
+    });
+  };
+
+  // Función para abrir el diálogo de edición de carpeta
+  const openEditFolderDialog = (node) => {
+    setEditFolderNode(node);
+    setEditFolderName(node.label);
+    setShowEditFolderDialog(true);
+  };
+
+  // Función para guardar la edición de la carpeta
+  const saveEditFolder = () => {
+    if (!editFolderName.trim()) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'El nombre de la carpeta no puede estar vacío',
+        life: 3000
+      });
+      return;
+    }
+    const nodesCopy = deepCopy(nodes);
+    const nodeToEdit = findNodeByKey(nodesCopy, editFolderNode.key);
+    if (nodeToEdit) {
+      nodeToEdit.label = editFolderName.trim();
+    }
+    updateNodesWithKeys(nodesCopy);
+    setShowEditFolderDialog(false);
+    setEditFolderNode(null);
+    setEditFolderName('');
+    toast.current.show({
+      severity: 'success',
+      summary: 'Carpeta editada',
+      detail: `Nombre actualizado`,
       life: 3000
     });
   };
@@ -804,24 +926,22 @@ const App = () => {
                 </span>
                 <Button
                   icon="pi pi-plus"
-                  className="p-button-rounded p-button-text"
-                  style={{ fontSize: '1.3rem', marginRight: '0.25rem' }}
+                  className="p-button-rounded p-button-text sidebar-action-button"
+                  style={{ marginRight: '0.25rem' }}
                   onClick={() => openNewFolderDialog(null)}
                   tooltip="Crear carpeta"
                   tooltipOptions={{ position: 'bottom' }}
                 />
                 <Button
                   icon="pi pi-server"
-                  className="p-button-rounded p-button-text"
-                  style={{ fontSize: '1.3rem' }}
+                  className="p-button-rounded p-button-text sidebar-action-button"
                   onClick={() => setShowSSHDialog(true)}
                   tooltip="Nueva conexión SSH"
                   tooltipOptions={{ position: 'bottom' }}
                 />
                 <Button
                   icon="pi pi-cog"
-                  className="p-button-rounded p-button-text"
-                  style={{ fontSize: '1.3rem' }}
+                  className="p-button-rounded p-button-text sidebar-action-button"
                   onClick={() => setShowConfigDialog(true)}
                   tooltip="Configuración"
                   tooltipOptions={{ position: 'bottom' }}
@@ -849,21 +969,58 @@ const App = () => {
           
           {/* Main content area */}
           <SplitterPanel size={75} style={{ padding: '1rem', overflow: 'auto' }}>
-            <Card title="Contenido Principal">
-              <p className="m-0">
-                Bienvenido a la aplicación de escritorio. Seleccione un archivo del panel lateral para ver su contenido.
-              </p>
-              {selectedNodeKey && (
+            {sshTabs.length > 0 ? (
+              <TabView activeIndex={activeTabIndex} onTabChange={e => setActiveTabIndex(e.index)} scrollable
+                renderActiveOnly={false}
+                onTabClose={e => {
+                  setSshTabs(tabs => {
+                    const newTabs = tabs.filter((_, i) => i !== e.index);
+                    // Actualizar los números de las pestañas restantes del mismo tipo
+                    return newTabs.map(tab => {
+                      if (tab.originalKey === tabs[e.index].originalKey) {
+                        const count = newTabs.filter(t => t.originalKey === tab.originalKey).length;
+                        const number = newTabs.filter(t => 
+                          t.originalKey === tab.originalKey && 
+                          t.key < tab.key
+                        ).length + 1;
+                        return {
+                          ...tab,
+                          label: `${tab.label.split(' (')[0]} (${number})`
+                        };
+                      }
+                      return tab;
+                    });
+                  });
+                  setActiveTabIndex(i => (i > 0 ? i - 1 : 0));
+                }}
+              >
+                {sshTabs.map((tab, i) => (
+                  <TabPanel key={tab.key} header={tab.label} closable>
+                    <div>
+                      <h3>Conexión SSH: {tab.label.split(' (')[0]}</h3>
+                      <p><b>Host:</b> {tab.host}</p>
+                      <p><b>Usuario:</b> {tab.user}</p>
+                    </div>
+                  </TabPanel>
+                ))}
+              </TabView>
+            ) : (
+              <Card title="Contenido Principal">
+                <p className="m-0">
+                  Bienvenido a la aplicación de escritorio. Seleccione un archivo del panel lateral para ver su contenido.
+                </p>
+                {selectedNodeKey && (
+                  <div className="mt-3">
+                    <p>Elemento seleccionado: {Object.keys(selectedNodeKey)[0]}</p>
+                  </div>
+                )}
                 <div className="mt-3">
-                  <p>Elemento seleccionado: {Object.keys(selectedNodeKey)[0]}</p>
+                  <p>Puedes arrastrar y soltar elementos en el panel lateral para reorganizarlos.</p>
+                  <p>Haz clic en el botón "+" para crear carpetas nuevas.</p>
+                  <p>Para eliminar un elemento, haz clic en el botón de la papelera que aparece al pasar el ratón.</p>
                 </div>
-              )}
-              <div className="mt-3">
-                <p>Puedes arrastrar y soltar elementos en el panel lateral para reorganizarlos.</p>
-                <p>Haz clic en el botón "+" para crear carpetas nuevas.</p>
-                <p>Para eliminar un elemento, haz clic en el botón de la papelera que aparece al pasar el ratón.</p>
-              </div>
-            </Card>
+              </Card>
+            )}
           </SplitterPanel>
         </Splitter>
       </div>
@@ -924,6 +1081,14 @@ const App = () => {
             <InputText id="sshUser" value={sshUser} onChange={e => setSSHUser(e.target.value)} />
           </div>
           <div className="p-field">
+            <label htmlFor="sshPassword">Contraseña</label>
+            <InputText id="sshPassword" type="password" value={sshPassword} onChange={e => setSSHPassword(e.target.value)} />
+          </div>
+          <div className="p-field">
+            <label htmlFor="sshRemoteFolder">Carpeta remota</label>
+            <InputText id="sshRemoteFolder" value={sshRemoteFolder} onChange={e => setSSHRemoteFolder(e.target.value)} placeholder="/home/usuario" />
+          </div>
+          <div className="p-field">
             <label htmlFor="sshTargetFolder">Carpeta destino</label>
             <Dropdown id="sshTargetFolder" value={sshTargetFolder} options={getAllFolders(nodes)} onChange={e => setSSHTargetFolder(e.value)} placeholder="Selecciona una carpeta (opcional)" showClear filter />
           </div>
@@ -956,6 +1121,14 @@ const App = () => {
             <label htmlFor="editSSHUser">Usuario</label>
             <InputText id="editSSHUser" value={editSSHUser} onChange={e => setEditSSHUser(e.target.value)} />
           </div>
+          <div className="p-field">
+            <label htmlFor="editSSHPassword">Contraseña</label>
+            <InputText id="editSSHPassword" type="password" value={editSSHPassword} onChange={e => setEditSSHPassword(e.target.value)} />
+          </div>
+          <div className="p-field">
+            <label htmlFor="editSSHRemoteFolder">Carpeta remota</label>
+            <InputText id="editSSHRemoteFolder" value={editSSHRemoteFolder} onChange={e => setEditSSHRemoteFolder(e.target.value)} placeholder="/home/usuario" />
+          </div>
         </div>
       </Dialog>
 
@@ -974,6 +1147,27 @@ const App = () => {
         <div className="p-fluid">
           <div className="p-field">
             <p>Aquí puedes agregar opciones de configuración de la aplicación.</p>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Dialog para editar carpeta */}
+      <Dialog
+        header="Editar carpeta"
+        visible={showEditFolderDialog}
+        style={{ width: '25rem' }}
+        onHide={() => setShowEditFolderDialog(false)}
+        footer={
+          <div>
+            <Button label="Cancelar" icon="pi pi-times" onClick={() => setShowEditFolderDialog(false)} className="p-button-text" />
+            <Button label="Guardar" icon="pi pi-check" onClick={saveEditFolder} autoFocus />
+          </div>
+        }
+      >
+        <div className="p-fluid">
+          <div className="p-field">
+            <label htmlFor="editFolderName">Nombre de la carpeta</label>
+            <InputText id="editFolderName" value={editFolderName} onChange={e => setEditFolderName(e.target.value)} autoFocus />
           </div>
         </div>
       </Dialog>
