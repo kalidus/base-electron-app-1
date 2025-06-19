@@ -10,6 +10,7 @@ import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Dropdown } from 'primereact/dropdown';
+import { Sidebar } from 'primereact/sidebar';
 
 const App = () => {
   const toast = useRef(null);
@@ -26,6 +27,7 @@ const App = () => {
   const [editSSHName, setEditSSHName] = useState('');
   const [editSSHHost, setEditSSHHost] = useState('');
   const [editSSHUser, setEditSSHUser] = useState('');
+  const [showConfigDialog, setShowConfigDialog] = useState(false);
 
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
@@ -786,7 +788,6 @@ const App = () => {
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Toast ref={toast} />
       <ConfirmDialog />
-      
       {/* Top menubar */}
       <Menubar model={menuItems} />
       
@@ -796,12 +797,37 @@ const App = () => {
           {/* Left sidebar with tree */}
           <SplitterPanel size={25} minSize={20} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <div style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden'
-              }}>
+              {/* Barra superior del panel lateral con buscador e iconos */}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.5rem 0.25rem 0.5rem', gap: '0.5rem' }}>
+                <span style={{ flex: 1 }}>
+                  {/* El filtro del árbol se renderiza automáticamente, pero aquí podemos poner un input si se quiere personalizar */}
+                </span>
+                <Button
+                  icon="pi pi-plus"
+                  className="p-button-rounded p-button-text"
+                  style={{ fontSize: '1.3rem', marginRight: '0.25rem' }}
+                  onClick={() => openNewFolderDialog(null)}
+                  tooltip="Crear carpeta"
+                  tooltipOptions={{ position: 'bottom' }}
+                />
+                <Button
+                  icon="pi pi-server"
+                  className="p-button-rounded p-button-text"
+                  style={{ fontSize: '1.3rem' }}
+                  onClick={() => setShowSSHDialog(true)}
+                  tooltip="Nueva conexión SSH"
+                  tooltipOptions={{ position: 'bottom' }}
+                />
+                <Button
+                  icon="pi pi-cog"
+                  className="p-button-rounded p-button-text"
+                  style={{ fontSize: '1.3rem' }}
+                  onClick={() => setShowConfigDialog(true)}
+                  tooltip="Configuración"
+                  tooltipOptions={{ position: 'bottom' }}
+                />
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
                 <Tree
                   value={nodes}
                   selectionMode="single"
@@ -929,6 +955,25 @@ const App = () => {
           <div className="p-field">
             <label htmlFor="editSSHUser">Usuario</label>
             <InputText id="editSSHUser" value={editSSHUser} onChange={e => setEditSSHUser(e.target.value)} />
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Dialog de configuración */}
+      <Dialog
+        header="Configuración de la aplicación"
+        visible={showConfigDialog}
+        style={{ width: '25rem' }}
+        onHide={() => setShowConfigDialog(false)}
+        footer={
+          <div>
+            <Button label="Cerrar" icon="pi pi-times" onClick={() => setShowConfigDialog(false)} className="p-button-text" />
+          </div>
+        }
+      >
+        <div className="p-fluid">
+          <div className="p-field">
+            <p>Aquí puedes agregar opciones de configuración de la aplicación.</p>
           </div>
         </div>
       </Dialog>
