@@ -12,6 +12,7 @@ import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Dropdown } from 'primereact/dropdown';
 import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
+import { Terminal } from 'primereact/terminal';
 
 const App = () => {
   const toast = useRef(null);
@@ -970,36 +971,49 @@ const App = () => {
           {/* Main content area */}
           <SplitterPanel size={75} style={{ padding: '1rem', overflow: 'auto' }}>
             {sshTabs.length > 0 ? (
-              <TabView activeIndex={activeTabIndex} onTabChange={e => setActiveTabIndex(e.index)} scrollable
-                renderActiveOnly={false}
-                onTabClose={e => {
-                  setSshTabs(tabs => {
-                    const newTabs = tabs.filter((_, i) => i !== e.index);
-                    // Actualizar los números de las pestañas restantes del mismo tipo
-                    return newTabs.map(tab => {
-                      if (tab.originalKey === tabs[e.index].originalKey) {
-                        const count = newTabs.filter(t => t.originalKey === tab.originalKey).length;
-                        const number = newTabs.filter(t => 
-                          t.originalKey === tab.originalKey && 
-                          t.key < tab.key
-                        ).length + 1;
-                        return {
-                          ...tab,
-                          label: `${tab.label.split(' (')[0]} (${number})`
-                        };
-                      }
-                      return tab;
-                    });
-                  });
-                  setActiveTabIndex(i => (i > 0 ? i - 1 : 0));
+              <TabView 
+                activeIndex={activeTabIndex} 
+                onTabChange={(e) => setActiveTabIndex(e.index)}
+                pt={{
+                  root: { className: 'w-full' },
+                  navContainer: { className: 'bg-white border-bottom-1 border-300' },
+                  nav: { className: 'gap-2 px-3' },
+                  inkbar: { 
+                    className: 'bg-primary-500',
+                    style: { height: '2px', bottom: '0', backgroundColor: 'var(--primary-color)' }
+                  },
+                  tab: {
+                    className: ({ state }) => ({
+                      'inline-flex items-center px-3 py-2 text-primary hover:text-primary-600 hover:bg-primary-50 transition-colors transition-duration-150 rounded-lg': true,
+                      'bg-primary-50 text-primary-600': state.isActive
+                    })
+                  }
                 }}
+                scrollable
               >
                 {sshTabs.map((tab, i) => (
-                  <TabPanel key={tab.key} header={tab.label} closable>
-                    <div>
-                      <h3>Conexión SSH: {tab.label.split(' (')[0]}</h3>
-                      <p><b>Host:</b> {tab.host}</p>
-                      <p><b>Usuario:</b> {tab.user}</p>
+                  <TabPanel 
+                    key={tab.key} 
+                    header={tab.label} 
+                    closable
+                    pt={{
+                      content: { className: 'surface-ground' },
+                      headerAction: { className: 'px-3 py-2' }
+                    }}
+                  >
+                    <div className="ssh-terminal-container" style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
+                      <div className="terminal-wrapper" style={{ flex: 1, backgroundColor: '#1e1e1e', borderRadius: '6px', padding: '1rem' }}>
+                        <Terminal
+                          welcomeMessage={`Conectado a ${tab.host} como ${tab.user}`}
+                          prompt={`${tab.user}@${tab.host}:~$`}
+                          pt={{
+                            root: { className: 'bg-gray-900 text-white border-round h-full' },
+                            command: { className: 'text-primary-300' },
+                            response: { className: 'text-white' },
+                            prompt: { className: 'text-gray-400 mr-2' }
+                          }}
+                        />
+                      </div>
                     </div>
                   </TabPanel>
                 ))}
