@@ -21,6 +21,7 @@ const XTermComponent = ({ connectionId, isActive }) => {
         if (connection) {
           try {
             connection.fitAddon.fit();
+            terminalManager.sendResize(connectionId); // Notificar tamaño al backend
           } catch (e) { /* Ignorar errores si el terminal se desmonta rápidamente */ }
         }
       };

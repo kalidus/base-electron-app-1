@@ -87,6 +87,17 @@ ipcMain.handle('ssh-disconnect', (event, { connectionId }) => {
   }
 });
 
+ipcMain.handle('ssh-resize', (event, { connectionId, cols, rows }) => {
+  const connection = sshConnections.get(connectionId);
+  if (connection && connection.stream) {
+    try {
+      connection.stream.setWindow(rows, cols, 600, 800); // 600 y 800 son valores arbitrarios para height/width en pixels
+    } catch (e) {
+      console.warn('Error al hacer resize de la terminal SSH:', e);
+    }
+  }
+});
+
 // Boilerplate de Electron
 app.whenReady().then(createWindow);
 

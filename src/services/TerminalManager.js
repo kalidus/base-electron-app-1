@@ -68,17 +68,32 @@ class TerminalManager {
     }
 
     if (!connection.isOpened) {
-      // La primera vez, abrimos el terminal en el elemento
       connection.term.open(domElement);
       connection.isOpened = true;
     } else {
-      // Las veces siguientes, solo movemos el elemento del terminal ya existente
       domElement.appendChild(connection.term.element);
     }
     
     // Siempre ajustamos y enfocamos después de adjuntar
     connection.fitAddon.fit();
     connection.term.focus();
+
+    // Enviar tamaño al backend
+    this.sendResize(connectionId);
+  }
+
+  sendResize(connectionId) {
+    const connection = this.connections.get(connectionId);
+    if (connection) {
+      const cols = connection.term.cols;
+      const rows = connection.term.rows;
+      if (window.electron?.ssh?.resize) {
+        window.electron.ssh.resize({ connectionId, cols, rows });
+      } else if (window.electron?.ipcRenderer) {
+        // Fallback para IPC manual
+        window.electron.ipcRenderer.invoke('ssh-resize', { connectionId, cols, rows });
+      }
+    }
   }
 
   destroyConnection(connectionId) {
