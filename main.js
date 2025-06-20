@@ -7,6 +7,8 @@ let mainWindow;
 
 // Store active SSH connections and their shells
 const sshConnections = {};
+// Cache for Welcome Messages (MOTD) to show them on every new tab.
+const motdCache = {};
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -55,15 +57,33 @@ app.on('activate', () => {
 
 // IPC handler to establish an SSH connection
 ipcMain.on('ssh:connect', async (event, { tabId, config }) => {
+  const cacheKey = `${config.username}@${config.host}:${config.port}`;
+  // We no longer need the debug hook. The banner comes in the main data stream.
   const ssh = new SSH2Promise(config);
+
   try {
+    // For subsequent connections, send the cached MOTD immediately.
+    if (motdCache[cacheKey]) {
+      event.sender.send(`ssh:data:${tabId}`, motdCache[cacheKey]);
+    }
+
     await ssh.connect();
     const stream = await ssh.shell({ term: 'xterm-256color' });
 
     sshConnections[tabId] = { ssh, stream };
 
+    let motdIsCached = !!motdCache[cacheKey];
+
     stream.on('data', (data) => {
-      event.sender.send(`ssh:data:${tabId}`, data.toString('utf-8'));
+      const dataStr = data.toString('utf-8');
+
+      if (!motdIsCached) {
+        // First connection ever: cache the first data packet and mark as done.
+        motdCache[cacheKey] = dataStr;
+        motdIsCached = true;
+      }
+      
+      event.sender.send(`ssh:data:${tabId}`, dataStr);
     });
 
     stream.on('close', () => {

@@ -907,6 +907,18 @@ const App = () => {
     });
   };
 
+  useEffect(() => {
+    // Cuando cambiamos de pestaña, la terminal necesita recalcular su tamaño
+    // para ajustarse al contenedor que ahora es visible.
+    const resizeTimer = setTimeout(() => {
+      handleResize();
+    }, 50); // Un pequeño retardo para asegurar que el DOM está listo
+  
+    return () => {
+      clearTimeout(resizeTimer);
+    };
+  }, [activeTabIndex, sshTabs]); // Se ejecuta cuando cambia la pestaña activa o la lista de pestañas
+
   const handleResize = () => {
     const activeTabKey = sshTabs[activeTabIndex]?.key;
     if (activeTabKey && terminalRefs.current[activeTabKey]) {
@@ -972,47 +984,62 @@ const App = () => {
           
           <SplitterPanel size={75} style={{ display: 'flex', flexDirection: 'column' }}>
             {sshTabs.length > 0 ? (
-              <TabView 
-                activeIndex={activeTabIndex} 
-                onTabChange={(e) => {
-                  setActiveTabIndex(e.index);
-                  setTimeout(() => {
-                    handleResize();
-                  }, 50);
-                }}
-                onTabClose={(e) => {
-                  const closedTabKey = sshTabs[e.index].key;
-                  if (window.electron && window.electron.ipcRenderer) {
-                    window.electron.ipcRenderer.send('ssh:disconnect', closedTabKey);
-                  }
-                  const newTabs = sshTabs.filter((_, i) => i !== e.index);
-                  delete terminalRefs.current[closedTabKey];
-                  setSshTabs(newTabs);
-                }}
-                pt={{
-                  root: { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
-                  navContainer: { style: { flexShrink: 0 } },
-                  panelContainer: { style: { flexGrow: 1, overflow: 'auto' } }
-                }}
-                scrollable
-              >
-                {sshTabs.map((tab) => (
-                  <TabPanel 
-                    key={tab.key} 
-                    header={tab.label} 
-                    closable
-                    pt={{ 
-                      content: { style: { height: '100%' } }
-                    }}
-                  >
-                    <TerminalComponent
-                      ref={el => terminalRefs.current[tab.key] = el}
-                      tabId={tab.key}
-                      sshConfig={tab.sshConfig}
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <TabView 
+                  activeIndex={activeTabIndex} 
+                  onTabChange={(e) => {
+                    setActiveTabIndex(e.index);
+                  }}
+                  onTabClose={(e) => {
+                    const closedTabKey = sshTabs[e.index].key;
+                    if (window.electron && window.electron.ipcRenderer) {
+                      window.electron.ipcRenderer.send('ssh:disconnect', closedTabKey);
+                    }
+                    const newTabs = sshTabs.filter((_, i) => i !== e.index);
+                    delete terminalRefs.current[closedTabKey];
+                    
+                    if (activeTabIndex >= e.index && activeTabIndex > 0) {
+                      setActiveTabIndex(activeTabIndex - 1);
+                    }
+                    
+                    setSshTabs(newTabs);
+                  }}
+                  pt={{
+                    navContainer: { style: { flexShrink: 0 } },
+                  }}
+                  scrollable
+                >
+                  {sshTabs.map((tab) => (
+                    <TabPanel 
+                      key={tab.key} 
+                      header={tab.label} 
+                      closable
                     />
-                  </TabPanel>
-                ))}
-              </TabView>
+                  ))}
+                </TabView>
+                <div style={{ flexGrow: 1, position: 'relative' }}>
+                  {sshTabs.map((tab, index) => (
+                    <div 
+                      key={tab.key} 
+                      style={{ 
+                        display: activeTabIndex === index ? 'flex' : 'none',
+                        flexDirection: 'column',
+                        height: '100%',
+                        width: '100%',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0
+                      }}
+                    >
+                      <TerminalComponent
+                        ref={el => terminalRefs.current[tab.key] = el}
+                        tabId={tab.key}
+                        sshConfig={tab.sshConfig}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
               <Card title="Contenido Principal" style={{ flex: 1 }}>
                 <p className="m-0">
