@@ -195,4 +195,9 @@ html, body {
 .sidebar-tree .p-tree-filter-container {
   border: 1px solid var(--surface-d) !important;
   border-radius: 6px;
+}
+
+/* Elimina el espacio entre las pestañas y el contenido del terminal */
+.p-tabview .p-tabview-panels {
+  padding: 0 !important;
 } 
