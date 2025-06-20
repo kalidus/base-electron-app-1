@@ -116,6 +116,16 @@ html, body {
   font-size: 0.7rem !important;
 }
 
+/* Estilo para los botones de acción de la barra lateral */
+.p-splitter-panel .sidebar-action-button {
+  width: 2.0rem !important;
+  height: 2.0rem !important;
+}
+
+.p-splitter-panel .sidebar-action-button .p-button-icon {
+  font-size: 1.0rem !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -179,4 +189,10 @@ html, body {
 .p-tabview .p-tabview-nav li.p-highlight .p-tabview-nav-link {
     color: var(--primary-color);
     border-color: var(--primary-color);
+}
+
+/* Borde para el buscador del arbol */
+.sidebar-tree .p-tree-filter-container {
+  border: 1px solid var(--surface-d) !important;
+  border-radius: 6px;
 } 

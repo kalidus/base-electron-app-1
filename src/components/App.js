@@ -12,6 +12,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
 import TerminalComponent from './TerminalComponent';
+import { Divider } from 'primereact/divider';
 
 const App = () => {
   const toast = useRef(null);
@@ -956,32 +957,34 @@ const App = () => {
         <Splitter style={{ height: '100%' }} onResizeEnd={handleResize}>
           <SplitterPanel size={25} minSize={20}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.5rem 0.25rem 0.5rem', gap: '0.5rem' }}>
-                <span style={{ flex: 1 }}>
-                </span>
-                <Button
-                  icon="pi pi-plus"
-                  className="p-button-rounded p-button-text sidebar-action-button"
-                  style={{ marginRight: '0.25rem' }}
-                  onClick={() => openNewFolderDialog(null)}
-                  tooltip="Crear carpeta"
-                  tooltipOptions={{ position: 'bottom' }}
-                />
-                <Button
-                  icon="pi pi-server"
-                  className="p-button-rounded p-button-text sidebar-action-button"
-                  onClick={() => setShowSSHDialog(true)}
-                  tooltip="Nueva conexión SSH"
-                  tooltipOptions={{ position: 'bottom' }}
-                />
-                <Button
-                  icon="pi pi-cog"
-                  className="p-button-rounded p-button-text sidebar-action-button"
-                  onClick={() => setShowConfigDialog(true)}
-                  tooltip="Configuración"
-                  tooltipOptions={{ position: 'bottom' }}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.5rem 0.25rem 0.5rem' }}>
+                <div>
+                  <Button
+                    icon="pi pi-plus"
+                    className="p-button-rounded p-button-text sidebar-action-button"
+                    onClick={() => openNewFolderDialog(null)}
+                    tooltip="Crear carpeta"
+                    tooltipOptions={{ position: 'bottom' }}
+                  />
+                  <Button
+                    icon="pi pi-server"
+                    className="p-button-rounded p-button-text sidebar-action-button"
+                    onClick={() => setShowSSHDialog(true)}
+                    tooltip="Nueva conexión SSH"
+                    tooltipOptions={{ position: 'bottom' }}
+                  />
+                </div>
+                <div>
+                  <Button
+                    icon="pi pi-cog"
+                    className="p-button-rounded p-button-text sidebar-action-button"
+                    onClick={() => setShowConfigDialog(true)}
+                    tooltip="Configuración"
+                    tooltipOptions={{ position: 'bottom' }}
+                  />
+                </div>
               </div>
+              <Divider className="my-2" />
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
                 <Tree
                   value={nodes}
