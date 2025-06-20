@@ -907,23 +907,25 @@ const App = () => {
     });
   };
 
+  const handleResize = () => {
+    const activeTabKey = sshTabs[activeTabIndex]?.key;
+    if (activeTabKey && terminalRefs.current[activeTabKey]) {
+      terminalRefs.current[activeTabKey].fit();
+    }
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Toast ref={toast} />
       <ConfirmDialog />
-      {/* Top menubar */}
       <Menubar model={menuItems} />
       
-      {/* Main content with splitter */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        <Splitter style={{ height: '100%' }}>
-          {/* Left sidebar with tree */}
-          <SplitterPanel size={25} minSize={20} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Splitter style={{ height: '100%' }} onResizeEnd={handleResize}>
+          <SplitterPanel size={25} minSize={20}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              {/* Barra superior del panel lateral con buscador e iconos */}
               <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.5rem 0.25rem 0.5rem', gap: '0.5rem' }}>
                 <span style={{ flex: 1 }}>
-                  {/* El filtro del árbol se renderiza automáticamente, pero aquí podemos poner un input si se quiere personalizar */}
                 </span>
                 <Button
                   icon="pi pi-plus"
@@ -968,27 +970,29 @@ const App = () => {
             </div>
           </SplitterPanel>
           
-          {/* Main content area */}
-          <SplitterPanel size={75} style={{ padding: '1rem', overflow: 'auto' }}>
+          <SplitterPanel size={75} style={{ display: 'flex', flexDirection: 'column' }}>
             {sshTabs.length > 0 ? (
               <TabView 
                 activeIndex={activeTabIndex} 
                 onTabChange={(e) => {
                   setActiveTabIndex(e.index);
-                  // Ensure terminal is resized when tab becomes active
                   setTimeout(() => {
-                    const activeTabKey = sshTabs[e.index]?.key;
-                    if (activeTabKey && terminalRefs.current[activeTabKey]) {
-                      terminalRefs.current[activeTabKey].fit();
-                    }
+                    handleResize();
                   }, 50);
                 }}
                 onTabClose={(e) => {
                   const closedTabKey = sshTabs[e.index].key;
-                  window.electron.ipcRenderer.send('ssh:disconnect', closedTabKey);
+                  if (window.electron && window.electron.ipcRenderer) {
+                    window.electron.ipcRenderer.send('ssh:disconnect', closedTabKey);
+                  }
                   const newTabs = sshTabs.filter((_, i) => i !== e.index);
                   delete terminalRefs.current[closedTabKey];
                   setSshTabs(newTabs);
+                }}
+                pt={{
+                  root: { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+                  navContainer: { style: { flexShrink: 0 } },
+                  panelContainer: { style: { flexGrow: 1, overflow: 'auto' } }
                 }}
                 scrollable
               >
@@ -997,6 +1001,9 @@ const App = () => {
                     key={tab.key} 
                     header={tab.label} 
                     closable
+                    pt={{ 
+                      content: { style: { height: '100%' } }
+                    }}
                   >
                     <TerminalComponent
                       ref={el => terminalRefs.current[tab.key] = el}
@@ -1007,7 +1014,7 @@ const App = () => {
                 ))}
               </TabView>
             ) : (
-              <Card title="Contenido Principal">
+              <Card title="Contenido Principal" style={{ flex: 1 }}>
                 <p className="m-0">
                   Bienvenido a la aplicación de escritorio. Seleccione un archivo del panel lateral para ver su contenido.
                 </p>
@@ -1027,7 +1034,6 @@ const App = () => {
         </Splitter>
       </div>
       
-      {/* Dialog for creating new folder */}
       <Dialog 
         header="Crear Nueva Carpeta" 
         visible={showFolderDialog} 
@@ -1056,7 +1062,6 @@ const App = () => {
         </div>
       </Dialog>
 
-      {/* Dialog para nueva sesión SSH */}
       <Dialog
         header="Nueva sesión SSH"
         visible={showSSHDialog}
@@ -1097,7 +1102,6 @@ const App = () => {
         </div>
       </Dialog>
 
-      {/* Dialog para editar sesión SSH */}
       <Dialog
         header="Editar sesión SSH"
         visible={showEditSSHDialog}
@@ -1134,7 +1138,6 @@ const App = () => {
         </div>
       </Dialog>
 
-      {/* Dialog de configuración */}
       <Dialog
         header="Configuración de la aplicación"
         visible={showConfigDialog}
@@ -1153,7 +1156,6 @@ const App = () => {
         </div>
       </Dialog>
 
-      {/* Dialog para editar carpeta */}
       <Dialog
         header="Editar carpeta"
         visible={showEditFolderDialog}
