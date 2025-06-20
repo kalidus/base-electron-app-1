@@ -985,11 +985,11 @@ const App = () => {
           </SplitterPanel>
           
           {/* Main content area */}
-          <SplitterPanel size={75} style={{ height: '100%', overflow: 'hidden', padding: '1rem' }}>
+          <SplitterPanel size={75} style={{ height: '100%', overflow: 'hidden' }}>
             {sshTabs.length > 0 ? (
-              <TabView activeIndex={activeTabIndex} onTabChange={(e) => setActiveTabIndex(e.index)} onTabClose={handleTabClose}>
+              <TabView style={{ height: '100%' }} activeIndex={activeTabIndex} onTabChange={(e) => setActiveTabIndex(e.index)} onTabClose={handleTabClose}>
                 {sshTabs.map(tab => (
-                  <TabPanel key={tab.key} header={tab.title} closable>
+                  <TabPanel key={tab.key} header={tab.title} closable style={{ height: '100%', padding: 0 }}>
                     <XTermComponent
                       host={tab.host}
                       user={tab.user}

@@ -5,14 +5,13 @@ import '@xterm/xterm/css/xterm.css';
 
 const XTermComponent = ({ host, user, password }) => {
   const terminalRef = useRef(null);
-  const term = useRef(null); // Usamos ref para mantener la instancia del terminal
+  const term = useRef(null);
+  const fitAddon = useRef(null);
   const connectionId = useRef(`ssh-term-${host}-${user}-${Date.now()}`).current;
 
+  // Efecto para inicializar el terminal
   useEffect(() => {
-    if (!terminalRef.current) return;
-
-    // Crear instancia del terminal solo una vez
-    if (!term.current) {
+    if (terminalRef.current && !term.current) {
       term.current = new Terminal({
         cursorBlink: true,
         convertEol: true,
@@ -20,19 +19,33 @@ const XTermComponent = ({ host, user, password }) => {
         fontSize: 15,
       });
 
-      const fitAddon = new FitAddon();
-      term.current.loadAddon(fitAddon);
+      fitAddon.current = new FitAddon();
+      term.current.loadAddon(fitAddon.current);
       term.current.open(terminalRef.current);
-      fitAddon.fit();
-
-      // Ajustar al cambiar el tamaño de la ventana
-      const resizeHandler = () => fitAddon.fit();
-      window.addEventListener('resize', resizeHandler);
+      fitAddon.current.fit();
     }
-    
+  }, []); // Se ejecuta solo una vez al montar
+
+  // Efecto para ajustar el tamaño
+  useEffect(() => {
+    if (terminalRef.current && fitAddon.current) {
+      const resizeObserver = new ResizeObserver(() => {
+        fitAddon.current.fit();
+      });
+      resizeObserver.observe(terminalRef.current);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+  }, []); // Se ejecuta solo una vez al montar
+
+  // Efecto para manejar la conexión SSH
+  useEffect(() => {
+    if (!term.current) return;
+
     const currentTerm = term.current;
     
-    // Conectar a SSH
     currentTerm.write(`Connecting to ${user}@${host}...\r\n`);
     window.electron.ssh.connect({ connectionId, host, username: user, password })
       .then(result => {
@@ -41,32 +54,27 @@ const XTermComponent = ({ host, user, password }) => {
         }
       });
 
-    // Listener para datos entrantes del servidor
     const removeDataListener = window.electron.ssh.onData(connectionId, (data) => {
       currentTerm.write(data);
     });
 
-    // Listener para cierre de conexión
     const removeCloseListener = window.electron.ssh.onClose(connectionId, () => {
       currentTerm.write('\r\n\x1b[31mConnection Closed\x1b[0m\r\n');
     });
 
-    // Enviar datos tecleados por el usuario al backend
     const dataHandler = currentTerm.onData(data => {
       window.electron.ssh.write({ connectionId, data });
     });
 
-    // Limpieza al desmontar el componente
     return () => {
       dataHandler.dispose();
       removeDataListener();
       removeCloseListener();
       window.electron.ssh.disconnect({ connectionId });
-      // No destruimos el terminal aquí para que no desaparezca al cambiar de pestaña
     };
-  }, [host, user, password, connectionId]); // Se re-ejecuta si cambian las props de conexión
+  }, [host, user, password, connectionId]);
 
-  return <div ref={terminalRef} style={{ height: '100%', width: '100%' }} />;
+  return <div ref={terminalRef} className="xterm-container" />;
 };
 
 export default XTermComponent; 
