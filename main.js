@@ -76,17 +76,24 @@ ipcMain.on('ssh:connect', async (event, { tabId, config }) => {
 
     sshConnections[tabId] = { ssh, stream };
 
-    let motdIsCached = !!motdCache[cacheKey];
+    let isFirstPacket = true;
 
     stream.on('data', (data) => {
       const dataStr = data.toString('utf-8');
 
-      if (!motdIsCached) {
-        // First connection ever: cache the first data packet and mark as done.
-        motdCache[cacheKey] = dataStr;
-        motdIsCached = true;
+      if (isFirstPacket) {
+        isFirstPacket = false;
+        // If the MOTD is not cached yet (it's the first-ever connection)
+        if (!motdCache[cacheKey]) {
+          motdCache[cacheKey] = dataStr; // Cache it
+          event.sender.send(`ssh:data:${tabId}`, dataStr); // And send it
+        }
+        // If it was already cached, we've already sent the cached version.
+        // We do nothing here, effectively suppressing the duplicate message.
+        return; 
       }
       
+      // For all subsequent packets, just send them
       event.sender.send(`ssh:data:${tabId}`, dataStr);
     });
 
