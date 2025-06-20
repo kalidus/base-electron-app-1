@@ -14,6 +14,14 @@ import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Terminal } from 'primereact/terminal';
 import XTermComponent from './XTermComponent';
+import { v4 as uuidv4 } from 'uuid';
+import terminalManager from '../services/TerminalManager';
+import 'primereact/resources/themes/saga-blue/theme.css';
+import 'primereact/resources/primereact.min.css';
+import 'primeicons/primeicons.css';
+import 'primeflex/primeflex.css';
+import '../assets/styles.css';
+import '@xterm/xterm/css/xterm.css';
 
 const App = () => {
   const toast = useRef(null);
@@ -911,16 +919,30 @@ const App = () => {
         host: node.data.host,
         user: node.data.user,
         password: node.data.password,
+        connectionId: `ssh-term-${node.key}-${uuidv4()}` // ID único para la conexión
       };
-      const newTabs = [...sshTabs, newTab];
-      setSshTabs(newTabs);
-      setActiveTabIndex(newTabs.length - 1);
+
+      // Crear la conexión en segundo plano
+      terminalManager.createConnection({
+        connectionId: newTab.connectionId,
+        host: newTab.host,
+        username: newTab.user,
+        password: newTab.password,
+      });
+
+      setSshTabs([...sshTabs, newTab]);
+      setActiveTabIndex(sshTabs.length);
     }
   };
   
   const handleTabClose = (e) => {
-    const newTabs = sshTabs.filter((_, i) => i !== e.index);
-    setSshTabs(newTabs);
+    const closedTab = sshTabs[e.index];
+    
+    // Destruir la conexión y el terminal asociados
+    terminalManager.destroyConnection(closedTab.connectionId);
+    
+    const remainingTabs = sshTabs.filter((tab, index) => index !== e.index);
+    setSshTabs(remainingTabs);
   };
 
   return (
@@ -988,12 +1010,11 @@ const App = () => {
           <SplitterPanel size={75} style={{ height: '100%', overflow: 'hidden' }}>
             {sshTabs.length > 0 ? (
               <TabView style={{ height: '100%' }} activeIndex={activeTabIndex} onTabChange={(e) => setActiveTabIndex(e.index)} onTabClose={handleTabClose}>
-                {sshTabs.map(tab => (
+                {sshTabs.map((tab, index) => (
                   <TabPanel key={tab.key} header={tab.title} closable style={{ height: '100%', padding: 0 }}>
                     <XTermComponent
-                      host={tab.host}
-                      user={tab.user}
-                      password={tab.password}
+                      connectionId={tab.connectionId}
+                      isActive={activeTabIndex === index}
                     />
                   </TabPanel>
                 ))}

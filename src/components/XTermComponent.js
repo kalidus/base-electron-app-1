@@ -1,78 +1,61 @@
-import React, { useEffect, useRef } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import '@xterm/xterm/css/xterm.css';
+import React, { useLayoutEffect, useRef } from 'react';
+import terminalManager from '../services/TerminalManager';
 
-const XTermComponent = ({ host, user, password }) => {
+const XTermComponent = ({ connectionId, isActive }) => {
   const terminalRef = useRef(null);
-  const term = useRef(null);
-  const fitAddon = useRef(null);
-  const connectionId = useRef(`ssh-term-${host}-${user}-${Date.now()}`).current;
 
-  // Efecto para inicializar el terminal
-  useEffect(() => {
-    if (terminalRef.current && !term.current) {
-      term.current = new Terminal({
-        cursorBlink: true,
-        convertEol: true,
-        fontFamily: `Consolas, 'Courier New', monospace`,
-        fontSize: 15,
-      });
+  useLayoutEffect(() => {
+    if (!terminalRef.current || !connectionId) return;
 
-      fitAddon.current = new FitAddon();
-      term.current.loadAddon(fitAddon.current);
-      term.current.open(terminalRef.current);
-      fitAddon.current.fit();
-    }
-  }, []); // Se ejecuta solo una vez al montar
-
-  // Efecto para ajustar el tamaño
-  useEffect(() => {
-    if (terminalRef.current && fitAddon.current) {
-      const resizeObserver = new ResizeObserver(() => {
-        fitAddon.current.fit();
-      });
-      resizeObserver.observe(terminalRef.current);
-
-      return () => {
-        resizeObserver.disconnect();
-      };
-    }
-  }, []); // Se ejecuta solo una vez al montar
-
-  // Efecto para manejar la conexión SSH
-  useEffect(() => {
-    if (!term.current) return;
-
-    const currentTerm = term.current;
-    
-    currentTerm.write(`Connecting to ${user}@${host}...\r\n`);
-    window.electron.ssh.connect({ connectionId, host, username: user, password })
-      .then(result => {
-        if (!result.success) {
-          currentTerm.write(`\x1b[31mConnection Failed: ${result.error}\x1b[0m\r\n`);
+    // Solo actuamos si la pestaña está activa para evitar trabajo innecesario
+    if (isActive) {
+      // Usamos requestAnimationFrame para asegurar que el DOM está listo
+      const animationFrameId = requestAnimationFrame(() => {
+        if (terminalRef.current) {
+          terminalManager.attachTerminal(connectionId, terminalRef.current);
         }
       });
 
-    const removeDataListener = window.electron.ssh.onData(connectionId, (data) => {
-      currentTerm.write(data);
-    });
+      const fitTerminal = () => {
+        const connection = terminalManager.getConnection(connectionId);
+        if (connection) {
+          try {
+            connection.fitAddon.fit();
+          } catch (e) { /* Ignorar errores si el terminal se desmonta rápidamente */ }
+        }
+      };
 
-    const removeCloseListener = window.electron.ssh.onClose(connectionId, () => {
-      currentTerm.write('\r\n\x1b[31mConnection Closed\x1b[0m\r\n');
-    });
+      const resizeObserver = new ResizeObserver(fitTerminal);
+      resizeObserver.observe(terminalRef.current);
 
-    const dataHandler = currentTerm.onData(data => {
-      window.electron.ssh.write({ connectionId, data });
-    });
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+        resizeObserver.disconnect();
+        
+        // Al desmontar, DESACOPLAMOS el elemento del terminal, NO lo destruimos.
+        const connection = terminalManager.getConnection(connectionId);
+        if (terminalRef.current && connection?.term.element) {
+          if (terminalRef.current.contains(connection.term.element)) {
+            try {
+              terminalRef.current.removeChild(connection.term.element);
+            } catch (e) { /* Ignorar si ya fue removido */ }
+          }
+        }
+      };
+    }
+  }, [connectionId, isActive]);
 
-    return () => {
-      dataHandler.dispose();
-      removeDataListener();
-      removeCloseListener();
-      window.electron.ssh.disconnect({ connectionId });
-    };
-  }, [host, user, password, connectionId]);
+  // Efecto para enfocar el terminal cuando la pestaña está activa
+  useLayoutEffect(() => {
+    if (isActive && terminalManager.getConnection(connectionId)) {
+      const connection = terminalManager.getConnection(connectionId);
+      // Retraso para asegurar que el DOM esté visible
+      setTimeout(() => {
+        connection.term.focus();
+        connection.fitAddon.fit(); // Reajustar por si acaso
+      }, 50); 
+    }
+  }, [isActive, connectionId]);
 
   return <div ref={terminalRef} className="xterm-container" />;
 };
