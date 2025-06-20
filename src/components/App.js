@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Menubar } from 'primereact/menubar';
 import { Splitter, SplitterPanel } from 'primereact/splitter';
 import { Tree } from 'primereact/tree';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
-import { useRef } from 'react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
@@ -12,7 +11,7 @@ import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Dropdown } from 'primereact/dropdown';
 import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
-import { Terminal } from 'primereact/terminal';
+import TerminalComponent from './TerminalComponent';
 
 const App = () => {
   const toast = useRef(null);
@@ -39,6 +38,7 @@ const App = () => {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [sshPassword, setSSHPassword] = useState('');
   const [sshRemoteFolder, setSSHRemoteFolder] = useState('');
+  const terminalRefs = useRef({});
 
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
@@ -85,11 +85,8 @@ const App = () => {
           icon: 'pi pi-fw pi-power-off',
           command: () => {
             try {
-              if (window && window.require) {
-                const { ipcRenderer } = window.require('electron');
-                ipcRenderer.send('app-quit');
-              } else if (typeof window !== 'undefined' && window.navigator && window.navigator.userAgent.includes('Electron')) {
-                window.require('electron').ipcRenderer.send('app-quit');
+              if (window.electron && window.electron.ipcRenderer) {
+                window.electron.ipcRenderer.send('app-quit');
               } else {
                 toast.current.show({
                   severity: 'info',
@@ -669,14 +666,17 @@ const App = () => {
         onDoubleClick={isSSH ? (e) => {
           e.stopPropagation();
           setSshTabs(prevTabs => {
-            // Crear un nuevo identificador único para la pestaña
             const tabId = `${node.key}_${Date.now()}`;
+            const sshConfig = {
+              host: node.data.host,
+              username: node.data.user,
+              password: node.data.password,
+            };
             const newTab = {
               key: tabId,
               label: `${node.label} (${prevTabs.filter(t => t.originalKey === node.key).length + 1})`,
-              host: node.data.host,
-              user: node.data.user,
-              originalKey: node.key // Guardamos la key original para contar instancias
+              originalKey: node.key,
+              sshConfig: sshConfig
             };
             const newTabs = [...prevTabs, newTab];
             setActiveTabIndex(newTabs.length - 1);
@@ -973,48 +973,36 @@ const App = () => {
             {sshTabs.length > 0 ? (
               <TabView 
                 activeIndex={activeTabIndex} 
-                onTabChange={(e) => setActiveTabIndex(e.index)}
-                pt={{
-                  root: { className: 'w-full' },
-                  navContainer: { className: 'bg-white border-bottom-1 border-300' },
-                  nav: { className: 'gap-2 px-3' },
-                  inkbar: { 
-                    className: 'bg-primary-500',
-                    style: { height: '2px', bottom: '0', backgroundColor: 'var(--primary-color)' }
-                  },
-                  tab: {
-                    className: ({ state }) => ({
-                      'inline-flex items-center px-3 py-2 text-primary hover:text-primary-600 hover:bg-primary-50 transition-colors transition-duration-150 rounded-lg': true,
-                      'bg-primary-50 text-primary-600': state.isActive
-                    })
-                  }
+                onTabChange={(e) => {
+                  setActiveTabIndex(e.index);
+                  // Ensure terminal is resized when tab becomes active
+                  setTimeout(() => {
+                    const activeTabKey = sshTabs[e.index]?.key;
+                    if (activeTabKey && terminalRefs.current[activeTabKey]) {
+                      terminalRefs.current[activeTabKey].fit();
+                    }
+                  }, 50);
+                }}
+                onTabClose={(e) => {
+                  const closedTabKey = sshTabs[e.index].key;
+                  window.electron.ipcRenderer.send('ssh:disconnect', closedTabKey);
+                  const newTabs = sshTabs.filter((_, i) => i !== e.index);
+                  delete terminalRefs.current[closedTabKey];
+                  setSshTabs(newTabs);
                 }}
                 scrollable
               >
-                {sshTabs.map((tab, i) => (
+                {sshTabs.map((tab) => (
                   <TabPanel 
                     key={tab.key} 
                     header={tab.label} 
                     closable
-                    pt={{
-                      content: { className: 'surface-ground' },
-                      headerAction: { className: 'px-3 py-2' }
-                    }}
                   >
-                    <div className="ssh-terminal-container" style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
-                      <div className="terminal-wrapper" style={{ flex: 1, backgroundColor: '#1e1e1e', borderRadius: '6px', padding: '1rem' }}>
-                        <Terminal
-                          welcomeMessage={`Conectado a ${tab.host} como ${tab.user}`}
-                          prompt={`${tab.user}@${tab.host}:~$`}
-                          pt={{
-                            root: { className: 'bg-gray-900 text-white border-round h-full' },
-                            command: { className: 'text-primary-300' },
-                            response: { className: 'text-white' },
-                            prompt: { className: 'text-gray-400 mr-2' }
-                          }}
-                        />
-                      </div>
-                    </div>
+                    <TerminalComponent
+                      ref={el => terminalRefs.current[tab.key] = el}
+                      tabId={tab.key}
+                      sshConfig={tab.sshConfig}
+                    />
                   </TabPanel>
                 ))}
               </TabView>
