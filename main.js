@@ -1,42 +1,69 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const url = require('url');
-const { ipcMain } = require('electron');
+const { Client } = require('ssh2');
 
-let mainWindow;
+// Mapa para almacenar las conexiones SSH activas (shell streams)
+const sshConnections = new Map();
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: true
-    }
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    },
   });
 
-  mainWindow.loadURL(
-    process.env.NODE_ENV === 'development'
-      ? 'http://localhost:3000'
-      : url.format({
-          pathname: path.join(__dirname, 'dist', 'index.html'),
-          protocol: 'file:',
-          slashes: true
-        })
-  );
-
-  // Open the DevTools in development mode
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
+  mainWindow.loadFile('dist/index.html');
 }
 
-app.on('ready', createWindow);
+// Lógica de conexión SSH
+ipcMain.handle('ssh-connect', (event, { connectionId, host, username, password }) => {
+  return new Promise((resolve) => {
+    const conn = new Client();
+    conn.on('ready', () => {
+      conn.shell((err, stream) => {
+        if (err) {
+          return resolve({ success: false, error: err.message });
+        }
+        sshConnections.set(connectionId, { conn, stream });
+
+        stream.on('data', (data) => {
+          event.sender.send(`ssh-data-${connectionId}`, data.toString('utf-8'));
+        });
+
+        stream.on('close', () => {
+          event.sender.send(`ssh-close-${connectionId}`);
+          sshConnections.delete(connectionId);
+          conn.end();
+        });
+
+        resolve({ success: true });
+      });
+    }).on('error', (err) => {
+      resolve({ success: false, error: err.message });
+    }).connect({ host, username, password });
+  });
+});
+
+ipcMain.handle('ssh-write', (event, { connectionId, data }) => {
+  const connection = sshConnections.get(connectionId);
+  if (connection && connection.stream) {
+    connection.stream.write(data);
+  }
+});
+
+ipcMain.handle('ssh-disconnect', (event, { connectionId }) => {
+  const connection = sshConnections.get(connectionId);
+  if (connection && connection.conn) {
+    connection.conn.end();
+  }
+});
+
+// Boilerplate de Electron
+app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -45,12 +72,14 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (mainWindow === null) {
+  if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
-// Permite cerrar la app desde el renderer (React) usando ipcRenderer
-ipcMain.on('app-quit', () => {
-  app.quit();
+// Limpieza al salir
+app.on('before-quit', () => {
+  for (const connection of sshConnections.values()) {
+    connection.conn.end();
+  }
 }); 

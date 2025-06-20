@@ -13,6 +13,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Terminal } from 'primereact/terminal';
+import XTermComponent from './XTermComponent';
 
 const App = () => {
   const toast = useRef(null);
@@ -668,20 +669,7 @@ const App = () => {
         onContextMenu={(e) => onNodeContextMenu(e, node)}
         onDoubleClick={isSSH ? (e) => {
           e.stopPropagation();
-          setSshTabs(prevTabs => {
-            // Crear un nuevo identificador único para la pestaña
-            const tabId = `${node.key}_${Date.now()}`;
-            const newTab = {
-              key: tabId,
-              label: `${node.label} (${prevTabs.filter(t => t.originalKey === node.key).length + 1})`,
-              host: node.data.host,
-              user: node.data.user,
-              originalKey: node.key // Guardamos la key original para contar instancias
-            };
-            const newTabs = [...prevTabs, newTab];
-            setActiveTabIndex(newTabs.length - 1);
-            return newTabs;
-          });
+          onNodeDoubleClick({ node });
         } : undefined}
       >
         <span className={iconClass} style={{ minWidth: 20 }}></span>
@@ -907,6 +895,34 @@ const App = () => {
     });
   };
 
+  const onNodeDoubleClick = (event) => {
+    const node = event.node;
+    if (node.data && node.data.host) {
+      // Evitar duplicados
+      const existingTab = sshTabs.find(t => t.key === node.key);
+      if (existingTab) {
+        setActiveTabIndex(sshTabs.findIndex(t => t.key === node.key));
+        return;
+      }
+
+      const newTab = {
+        key: node.key,
+        title: node.label,
+        host: node.data.host,
+        user: node.data.user,
+        password: node.data.password,
+      };
+      const newTabs = [...sshTabs, newTab];
+      setSshTabs(newTabs);
+      setActiveTabIndex(newTabs.length - 1);
+    }
+  };
+  
+  const handleTabClose = (e) => {
+    const newTabs = sshTabs.filter((_, i) => i !== e.index);
+    setSshTabs(newTabs);
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Toast ref={toast} />
@@ -969,71 +985,21 @@ const App = () => {
           </SplitterPanel>
           
           {/* Main content area */}
-          <SplitterPanel size={75} style={{ padding: '1rem', overflow: 'auto' }}>
+          <SplitterPanel size={75} style={{ height: '100%', overflow: 'hidden', padding: '1rem' }}>
             {sshTabs.length > 0 ? (
-              <TabView 
-                activeIndex={activeTabIndex} 
-                onTabChange={(e) => setActiveTabIndex(e.index)}
-                pt={{
-                  root: { className: 'w-full' },
-                  navContainer: { className: 'bg-white border-bottom-1 border-300' },
-                  nav: { className: 'gap-2 px-3' },
-                  inkbar: { 
-                    className: 'bg-primary-500',
-                    style: { height: '2px', bottom: '0', backgroundColor: 'var(--primary-color)' }
-                  },
-                  tab: {
-                    className: ({ state }) => ({
-                      'inline-flex items-center px-3 py-2 text-primary hover:text-primary-600 hover:bg-primary-50 transition-colors transition-duration-150 rounded-lg': true,
-                      'bg-primary-50 text-primary-600': state.isActive
-                    })
-                  }
-                }}
-                scrollable
-              >
-                {sshTabs.map((tab, i) => (
-                  <TabPanel 
-                    key={tab.key} 
-                    header={tab.label} 
-                    closable
-                    pt={{
-                      content: { className: 'surface-ground' },
-                      headerAction: { className: 'px-3 py-2' }
-                    }}
-                  >
-                    <div className="ssh-terminal-container" style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
-                      <div className="terminal-wrapper" style={{ flex: 1, backgroundColor: '#1e1e1e', borderRadius: '6px', padding: '1rem' }}>
-                        <Terminal
-                          welcomeMessage={`Conectado a ${tab.host} como ${tab.user}`}
-                          prompt={`${tab.user}@${tab.host}:~$`}
-                          pt={{
-                            root: { className: 'bg-gray-900 text-white border-round h-full' },
-                            command: { className: 'text-primary-300' },
-                            response: { className: 'text-white' },
-                            prompt: { className: 'text-gray-400 mr-2' }
-                          }}
-                        />
-                      </div>
-                    </div>
+              <TabView activeIndex={activeTabIndex} onTabChange={(e) => setActiveTabIndex(e.index)} onTabClose={handleTabClose}>
+                {sshTabs.map(tab => (
+                  <TabPanel key={tab.key} header={tab.title} closable>
+                    <XTermComponent
+                      host={tab.host}
+                      user={tab.user}
+                      password={tab.password}
+                    />
                   </TabPanel>
                 ))}
               </TabView>
             ) : (
-              <Card title="Contenido Principal">
-                <p className="m-0">
-                  Bienvenido a la aplicación de escritorio. Seleccione un archivo del panel lateral para ver su contenido.
-                </p>
-                {selectedNodeKey && (
-                  <div className="mt-3">
-                    <p>Elemento seleccionado: {Object.keys(selectedNodeKey)[0]}</p>
-                  </div>
-                )}
-                <div className="mt-3">
-                  <p>Puedes arrastrar y soltar elementos en el panel lateral para reorganizarlos.</p>
-                  <p>Haz clic en el botón "+" para crear carpetas nuevas.</p>
-                  <p>Para eliminar un elemento, haz clic en el botón de la papelera que aparece al pasar el ratón.</p>
-                </div>
-              </Card>
+              <div className="p-4">Selecciona una conexión SSH para empezar.</div>
             )}
           </SplitterPanel>
         </Splitter>
