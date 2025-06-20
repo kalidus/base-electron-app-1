@@ -17,6 +17,19 @@ function createWindow() {
   });
 
   mainWindow.loadFile('dist/index.html');
+
+  // Limpieza al cerrar ESTA ventana específica
+  mainWindow.on('close', () => {
+    console.log(`La ventana ${mainWindow.id} se está cerrando. Limpiando sus conexiones SSH...`);
+    for (const [connectionId, connection] of sshConnections.entries()) {
+      if (connection.conn) {
+        connection.conn.end();
+      }
+    }
+  });
+
+  // Guardar referencia global para los handlers
+  global.mainWindow = mainWindow;
 }
 
 // Lógica de conexión SSH
@@ -30,15 +43,27 @@ ipcMain.handle('ssh-connect', (event, { connectionId, host, username, password }
         }
         sshConnections.set(connectionId, { conn, stream });
 
-        stream.on('data', (data) => {
-          event.sender.send(`ssh-data-${connectionId}`, data.toString('utf-8'));
-        });
+        // Función segura para enviar mensajes solo si la ventana sigue viva
+        function safeSend(channel, ...args) {
+          const win = global.mainWindow;
+          if (win && !win.isDestroyed()) {
+            event.sender.send(channel, ...args);
+          }
+        }
 
-        stream.on('close', () => {
-          event.sender.send(`ssh-close-${connectionId}`);
+        function onData(data) {
+          safeSend(`ssh-data-${connectionId}`, data.toString('utf-8'));
+        }
+        function onClose() {
+          safeSend(`ssh-close-${connectionId}`);
           sshConnections.delete(connectionId);
           conn.end();
-        });
+          stream.removeListener('data', onData);
+          stream.removeListener('close', onClose);
+        }
+
+        stream.on('data', onData);
+        stream.on('close', onClose);
 
         resolve({ success: true });
       });

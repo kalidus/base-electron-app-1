@@ -87,7 +87,7 @@ class TerminalManager {
       // Limpiar todos los listeners
       connection.listeners.forEach(removeListener => removeListener());
       
-      // Desconectar SSH
+      // Desconectar SSH a través del proceso principal
       window.electron.ssh.disconnect({ connectionId });
       
       // Destruir el terminal
