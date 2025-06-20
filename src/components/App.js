@@ -905,15 +905,9 @@ const App = () => {
   const onNodeDoubleClick = (event) => {
     const node = event.node;
     if (node.data && node.data.host) {
-      // Evitar duplicados
-      const existingTab = sshTabs.find(t => t.key === node.key);
-      if (existingTab) {
-        setActiveTabIndex(sshTabs.findIndex(t => t.key === node.key));
-        return;
-      }
-
+      // Permitir siempre crear una nueva pestaña, aunque ya exista otra para el mismo nodo
       const newTab = {
-        key: node.key,
+        key: `${node.key}-${uuidv4()}`,
         title: node.label,
         host: node.data.host,
         user: node.data.user,
