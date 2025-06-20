@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
-const TerminalComponent = forwardRef(({ tabId, sshConfig }, ref) => {
+const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily }, ref) => {
     const terminalRef = useRef(null);
     const term = useRef(null);
     const fitAddon = useRef(null);
@@ -25,7 +25,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig }, ref) => {
         // Initialize Terminal
         term.current = new Terminal({
             cursorBlink: true,
-            fontFamily: 'monospace',
+            fontFamily: fontFamily,
             fontSize: 14,
             theme: {
                 background: '#1e1e1e',
@@ -77,6 +77,15 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig }, ref) => {
             term.current?.dispose();
         };
     }, [tabId, sshConfig]);
+
+    // Effect to update font family dynamically
+    useEffect(() => {
+        if (term.current && fontFamily) {
+            term.current.options.fontFamily = fontFamily;
+            // We might need to call fit again to readjust character sizes
+            fitAddon.current?.fit();
+        }
+    }, [fontFamily]);
 
     return <div ref={terminalRef} style={{ width: '100%', height: '100%' }} />;
 });

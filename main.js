@@ -1,3 +1,7 @@
+try {
+  require('electron-reloader')(module);
+} catch (_) {}
+
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const url = require('url');

@@ -40,6 +40,26 @@ const App = () => {
   const [sshRemoteFolder, setSSHRemoteFolder] = useState('');
   const terminalRefs = useRef({});
 
+  // Font configuration
+  const FONT_STORAGE_KEY = 'basicapp_terminal_font';
+  const availableFonts = [
+    { label: 'FiraCode Nerd Font', value: '"FiraCode Nerd Font", monospace' },
+    { label: 'Cascadia Code', value: '"Cascadia Code", monospace' },
+    { label: 'JetBrains Mono', value: '"JetBrains Mono", monospace' },
+    { label: 'Hack', value: 'Hack, monospace' },
+    { label: 'Source Code Pro', value: '"Source Code Pro", monospace' },
+    { label: 'Consolas', value: 'Consolas, monospace' },
+    { label: 'Courier New', value: '"Courier New", monospace' },
+    { label: 'Lucida Console', value: '"Lucida Console", monospace' },
+    { label: 'Menlo', value: 'Menlo, monospace' }
+  ];
+  const [fontFamily, setFontFamily] = useState(() => localStorage.getItem(FONT_STORAGE_KEY) || availableFonts[0].value);
+
+  // Auto-save font to localStorage
+  useEffect(() => {
+    localStorage.setItem(FONT_STORAGE_KEY, fontFamily);
+  }, [fontFamily]);
+
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
   
@@ -1035,6 +1055,7 @@ const App = () => {
                         ref={el => terminalRefs.current[tab.key] = el}
                         tabId={tab.key}
                         sshConfig={tab.sshConfig}
+                        fontFamily={fontFamily}
                       />
                     </div>
                   ))}
@@ -1178,7 +1199,15 @@ const App = () => {
       >
         <div className="p-fluid">
           <div className="p-field">
-            <p>Aquí puedes agregar opciones de configuración de la aplicación.</p>
+            <label htmlFor="font-selector" style={{ display: 'block', marginBottom: '0.5rem' }}>Fuente del Terminal</label>
+            <Dropdown 
+              id="font-selector"
+              value={fontFamily} 
+              options={availableFonts} 
+              onChange={(e) => setFontFamily(e.value)} 
+              placeholder="Seleccionar Fuente"
+              style={{ width: '100%' }}
+            />
           </div>
         </div>
       </Dialog>
