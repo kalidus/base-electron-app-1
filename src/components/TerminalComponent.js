@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
-const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily }, ref) => {
+const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }, ref) => {
     const terminalRef = useRef(null);
     const term = useRef(null);
     const fitAddon = useRef(null);
@@ -26,7 +26,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily }, ref) => 
         term.current = new Terminal({
             cursorBlink: true,
             fontFamily: fontFamily,
-            fontSize: 14,
+            fontSize: fontSize,
             theme: {
                 background: '#1e1e1e',
                 foreground: '#d4d4d4',
@@ -137,7 +137,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily }, ref) => 
                 term.current?.dispose();
             };
         }
-    }, [tabId, sshConfig, fontFamily]);
+    }, [tabId, sshConfig, fontFamily, fontSize]);
 
     // Effect to update font family dynamically
     useEffect(() => {
@@ -147,6 +147,15 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily }, ref) => 
             fitAddon.current?.fit();
         }
     }, [fontFamily]);
+
+    // Effect to update font size dynamically
+    useEffect(() => {
+        if (term.current && fontSize) {
+            term.current.options.fontSize = fontSize;
+            // We might need to call fit again to readjust character sizes
+            fitAddon.current?.fit();
+        }
+    }, [fontSize]);
 
     return <div ref={terminalRef} style={{ width: '100%', height: '100%' }} />;
 });

@@ -13,6 +13,7 @@ import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
 import TerminalComponent from './TerminalComponent';
 import { Divider } from 'primereact/divider';
+import { InputNumber } from 'primereact/inputnumber';
 
 const App = () => {
   const toast = useRef(null);
@@ -42,7 +43,8 @@ const App = () => {
   const terminalRefs = useRef({});
 
   // Font configuration
-  const FONT_STORAGE_KEY = 'basicapp_terminal_font';
+  const FONT_FAMILY_STORAGE_KEY = 'basicapp_terminal_font_family';
+  const FONT_SIZE_STORAGE_KEY = 'basicapp_terminal_font_size';
   const availableFonts = [
     { label: 'FiraCode Nerd Font', value: '"FiraCode Nerd Font", monospace' },
     { label: 'Cascadia Code', value: '"Cascadia Code", monospace' },
@@ -54,12 +56,21 @@ const App = () => {
     { label: 'Lucida Console', value: '"Lucida Console", monospace' },
     { label: 'Menlo', value: 'Menlo, monospace' }
   ];
-  const [fontFamily, setFontFamily] = useState(() => localStorage.getItem(FONT_STORAGE_KEY) || availableFonts[0].value);
+  const [fontFamily, setFontFamily] = useState(() => localStorage.getItem(FONT_FAMILY_STORAGE_KEY) || availableFonts[0].value);
+  const [fontSize, setFontSize] = useState(() => {
+    const savedSize = localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    return savedSize ? parseInt(savedSize, 10) : 14; // Default font size is 14
+  });
 
-  // Auto-save font to localStorage
+  // Auto-save font family to localStorage
   useEffect(() => {
-    localStorage.setItem(FONT_STORAGE_KEY, fontFamily);
+    localStorage.setItem(FONT_FAMILY_STORAGE_KEY, fontFamily);
   }, [fontFamily]);
+
+  // Auto-save font size to localStorage
+  useEffect(() => {
+    localStorage.setItem(FONT_SIZE_STORAGE_KEY, fontSize);
+  }, [fontSize]);
 
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
@@ -1059,6 +1070,7 @@ const App = () => {
                         tabId={tab.key}
                         sshConfig={tab.sshConfig}
                         fontFamily={fontFamily}
+                        fontSize={fontSize}
                       />
                     </div>
                   ))}
@@ -1209,6 +1221,18 @@ const App = () => {
               options={availableFonts} 
               onChange={(e) => setFontFamily(e.value)} 
               placeholder="Seleccionar Fuente"
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div className="p-field" style={{ marginTop: '1rem' }}>
+            <label htmlFor="font-size-selector" style={{ display: 'block', marginBottom: '0.5rem' }}>Tamaño de la Fuente</label>
+            <InputNumber 
+              id="font-size-selector"
+              value={fontSize} 
+              onValueChange={(e) => setFontSize(e.value)} 
+              showButtons 
+              min={8} 
+              max={30}
               style={{ width: '100%' }}
             />
           </div>
