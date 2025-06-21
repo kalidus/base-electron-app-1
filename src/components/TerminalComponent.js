@@ -40,6 +40,35 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily }, ref) => 
         fitAddon.current.fit();
         window.addEventListener('resize', () => fitAddon.current.fit());
 
+        // Custom clipboard handling
+        term.current.onKey(({ key, domEvent }) => {
+            const isMac = window.electron.platform === 'darwin';
+            const modifierKey = isMac ? domEvent.metaKey : domEvent.ctrlKey;
+
+            if (modifierKey && domEvent.key === 'c') {
+                const selection = term.current.getSelection();
+                if (selection) {
+                    window.electron.clipboard.writeText(selection);
+                    domEvent.preventDefault();
+                }
+            } else if (modifierKey && domEvent.key === 'v') {
+                window.electron.clipboard.readText().then(text => {
+                    term.current.paste(text);
+                });
+                domEvent.preventDefault();
+            }
+        });
+        
+        // Handle right-click to paste
+        terminalRef.current.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            window.electron.clipboard.readText().then(text => {
+                if(text){
+                    term.current.paste(text);
+                }
+            });
+        });
+
         term.current.writeln('Connecting to SSH...');
 
         // Connect via IPC

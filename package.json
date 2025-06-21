@@ -27,6 +27,7 @@
   "license": "ISC",
   "description": "Aplicación de escritorio multiplataforma con Electron y PrimeReact",
   "dependencies": {
+    "@xterm/addon-clipboard": "^0.1.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "primeflex": "^3.3.1",

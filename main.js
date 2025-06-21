@@ -2,7 +2,7 @@ try {
   require('electron-reloader')(module);
 } catch (_) {}
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard } = require('electron');
 const path = require('path');
 const url = require('url');
 const SSH2Promise = require('ssh2-promise');
@@ -134,7 +134,6 @@ ipcMain.on('ssh:disconnect', (event, tabId) => {
     delete sshConnections[tabId];
   }
 });
-
 
 // Permite cerrar la app desde el renderer (React) usando ipcRenderer
 ipcMain.on('app-quit', () => {
