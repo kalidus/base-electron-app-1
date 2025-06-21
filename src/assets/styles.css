@@ -200,4 +200,16 @@ html, body {
 /* Elimina el espacio entre las pestañas y el contenido del terminal */
 .p-tabview .p-tabview-panels {
   padding: 0 !important;
+}
+
+/* Añade un margen interno al área del terminal para que el texto no esté pegado a los bordes */
+.xterm-viewport {
+  padding: 10px !important;
+  /* Asegura que el padding no afecte al cálculo de tamaño del addon 'fit' */
+  box-sizing: border-box !important;
+}
+
+.xterm {
+    padding: 10px !important;
+    box-sizing: border-box !important;
 } 
