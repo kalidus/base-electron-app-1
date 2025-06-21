@@ -1,10 +1,10 @@
-const { contextBridge, ipcRenderer, clipboard } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   clipboard: {
-    writeText: (text) => clipboard.writeText(text),
-    readText: () => clipboard.readText(),
+    writeText: (text) => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: () => ipcRenderer.invoke('clipboard:readText'),
   },
   ipcRenderer: {
     send: (channel, data) => {

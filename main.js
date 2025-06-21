@@ -142,4 +142,13 @@ ipcMain.on('app-quit', () => {
     conn.ssh.close();
   });
   app.quit();
+});
+
+// Clipboard IPC Handlers
+ipcMain.handle('clipboard:readText', () => {
+  return clipboard.readText();
+});
+
+ipcMain.handle('clipboard:writeText', (event, text) => {
+  clipboard.writeText(text);
 }); 
