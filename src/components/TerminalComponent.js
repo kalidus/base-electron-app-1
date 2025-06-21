@@ -137,7 +137,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
                 term.current?.dispose();
             };
         }
-    }, [tabId, sshConfig, fontFamily, fontSize]);
+    }, [tabId, sshConfig]);
 
     // Effect to update font family dynamically
     useEffect(() => {
