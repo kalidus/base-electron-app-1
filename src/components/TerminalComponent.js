@@ -7,7 +7,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { ImageAddon } from '@xterm/addon-image';
 import '@xterm/xterm/css/xterm.css';
 
-const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }, ref) => {
+const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize, theme }, ref) => {
     const terminalRef = useRef(null);
     const term = useRef(null);
     const fitAddon = useRef(null);
@@ -32,10 +32,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
             fontFamily: fontFamily,
             fontSize: fontSize,
             allowProposedApi: true,
-            theme: {
-                background: '#1e1e1e',
-                foreground: '#d4d4d4',
-            }
+            theme: theme,
         });
 
         // Disable bracketed paste mode to prevent weird characters on Ctrl+V
@@ -183,6 +180,13 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
             fitAddon.current?.fit();
         }
     }, [fontSize]);
+
+    // Effect to update theme dynamically
+    useEffect(() => {
+        if (term.current && theme) {
+            term.current.options.theme = theme;
+        }
+    }, [theme]);
 
     return <div ref={terminalRef} style={{ width: '100%', height: '100%' }} />;
 });

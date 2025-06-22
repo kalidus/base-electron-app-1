@@ -14,6 +14,7 @@ import { TabView, TabPanel } from 'primereact/tabview';
 import TerminalComponent from './TerminalComponent';
 import { Divider } from 'primereact/divider';
 import { InputNumber } from 'primereact/inputnumber';
+import { themes } from '../themes';
 
 const App = () => {
   const toast = useRef(null);
@@ -62,6 +63,14 @@ const App = () => {
     return savedSize ? parseInt(savedSize, 10) : 14; // Default font size is 14
   });
 
+  // Theme configuration
+  const THEME_STORAGE_KEY = 'basicapp_terminal_theme';
+  const availableThemes = Object.keys(themes);
+  const [terminalTheme, setTerminalTheme] = useState(() => {
+      const savedThemeName = localStorage.getItem(THEME_STORAGE_KEY) || 'Default Dark';
+      return themes[savedThemeName];
+  });
+
   // Auto-save font family to localStorage
   useEffect(() => {
     localStorage.setItem(FONT_FAMILY_STORAGE_KEY, fontFamily);
@@ -71,6 +80,11 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem(FONT_SIZE_STORAGE_KEY, fontSize);
   }, [fontSize]);
+
+  // Auto-save theme to localStorage
+  useEffect(() => {
+    localStorage.setItem(THEME_STORAGE_KEY, terminalTheme.name);
+  }, [terminalTheme]);
 
   // Storage key for persistence
   const STORAGE_KEY = 'basicapp2_tree_data';
@@ -1071,6 +1085,7 @@ const App = () => {
                         sshConfig={tab.sshConfig}
                         fontFamily={fontFamily}
                         fontSize={fontSize}
+                        theme={terminalTheme.theme}
                       />
                     </div>
                   ))}
@@ -1212,30 +1227,21 @@ const App = () => {
           </div>
         }
       >
-        <div className="p-fluid">
-          <div className="p-field">
-            <label htmlFor="font-selector" style={{ display: 'block', marginBottom: '0.5rem' }}>Fuente del Terminal</label>
-            <Dropdown 
-              id="font-selector"
-              value={fontFamily} 
-              options={availableFonts} 
-              onChange={(e) => setFontFamily(e.value)} 
-              placeholder="Seleccionar Fuente"
-              style={{ width: '100%' }}
-            />
-          </div>
-          <div className="p-field" style={{ marginTop: '1rem' }}>
-            <label htmlFor="font-size-selector" style={{ display: 'block', marginBottom: '0.5rem' }}>Tamaño de la Fuente</label>
-            <InputNumber 
-              id="font-size-selector"
-              value={fontSize} 
-              onValueChange={(e) => setFontSize(e.value)} 
-              showButtons 
-              min={8} 
-              max={30}
-              style={{ width: '100%' }}
-            />
-          </div>
+        <div className="card p-fluid">
+            <h5>Configuración del Terminal</h5>
+
+            <div className="field">
+                <label htmlFor="font-family">Fuente</label>
+                <Dropdown id="font-family" value={fontFamily} options={availableFonts} onChange={(e) => setFontFamily(e.value)} placeholder="Selecciona una fuente" />
+            </div>
+            <div className="field">
+                <label htmlFor="font-size">Tamaño de Fuente</label>
+                <InputNumber id="font-size" value={fontSize} onValueChange={(e) => setFontSize(e.value)} showButtons />
+            </div>
+            <div className="field">
+                <label htmlFor="terminal-theme">Tema</label>
+                <Dropdown id="terminal-theme" value={terminalTheme.name} options={availableThemes} onChange={(e) => setTerminalTheme(themes[e.value])} placeholder="Selecciona un tema" />
+            </div>
         </div>
       </Dialog>
 
