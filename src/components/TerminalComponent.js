@@ -56,6 +56,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
 
         term.current.open(terminalRef.current);
         fitAddon.current.fit();
+        term.current.focus();
         
         const resizeObserver = new ResizeObserver(() => {
             fitAddon.current?.fit();
