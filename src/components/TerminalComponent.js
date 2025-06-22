@@ -111,6 +111,16 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
             // Connect via IPC
             window.electron.ipcRenderer.send('ssh:connect', { tabId, config: sshConfig });
 
+            // After the SSH connection is ready, send an initial resize so programs like vim/htop get the correct size
+            const onReady = () => {
+                window.electron.ipcRenderer.send('ssh:resize', {
+                    tabId,
+                    cols: term.current.cols,
+                    rows: term.current.rows
+                });
+            };
+            const onReadyUnsubscribe = window.electron.ipcRenderer.on(`ssh:ready:${tabId}`, onReady);
+
             // Listen for incoming data
             const dataListener = (data) => {
                 term.current?.write(data);
@@ -140,6 +150,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
                 window.electron.ipcRenderer.send('ssh:disconnect', tabId);
                 if (onDataUnsubscribe) onDataUnsubscribe();
                 if (onErrorUnsubscribe) onErrorUnsubscribe();
+                if (onReadyUnsubscribe) onReadyUnsubscribe();
                 dataHandler.dispose();
                 resizeHandler.dispose();
                 term.current?.dispose();
