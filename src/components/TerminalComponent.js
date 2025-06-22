@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
 const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }, ref) => {
@@ -38,6 +39,7 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
 
         fitAddon.current = new FitAddon();
         term.current.loadAddon(fitAddon.current);
+        term.current.loadAddon(new WebLinksAddon());
 
         term.current.open(terminalRef.current);
         fitAddon.current.fit();
