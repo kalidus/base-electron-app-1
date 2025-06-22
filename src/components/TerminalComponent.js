@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 
 const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }, ref) => {
@@ -44,6 +45,10 @@ const TerminalComponent = forwardRef(({ tabId, sshConfig, fontFamily, fontSize }
         term.current.loadAddon(new WebLinksAddon());
         term.current.loadAddon(new Unicode11Addon());
         term.current.unicode.activeVersion = '11';
+
+        // Load and activate the WebGL renderer
+        const webglAddon = new WebglAddon();
+        term.current.loadAddon(webglAddon);
 
         term.current.open(terminalRef.current);
         fitAddon.current.fit();
